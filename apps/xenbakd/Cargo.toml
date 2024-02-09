@@ -6,7 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-xapi_cli_client = { path = "../../libs/xapi_cli_client" }
 clap = { version = "4.4.18", features = ["derive"] }
 color-eyre = "0.6.2"
 eyre = "0.6.12"
@@ -18,3 +17,5 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tokio-cron-scheduler = "0.10.0"
 async-trait = "0.1.77"
 chrono = "0.4.33"
+thiserror = "1.0.56"
+sysinfo = "0.30.5"

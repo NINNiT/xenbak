@@ -1,5 +1,24 @@
 #![allow(dead_code)]
-use serde::{Deserialize, Serialize};
+use serde::{de::IntoDeserializer, Deserialize, Serialize};
+
+use crate::xapi::CompressionType;
+
+// deserialize "none" string for Option<SomeEnum>, e.g. for Option<CompressionType>. make it work for any source, not just JSON
+//e.g. the toml line compression = "none"             # Compression type:  gzip, zstd or none
+pub fn deserialize_option_enum<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de>,
+{
+    let s: String = serde::Deserialize::deserialize(deserializer)?;
+    if s == "none" {
+        Ok(None)
+    } else {
+        Ok(Some(serde::Deserialize::deserialize(
+            s.into_deserializer(),
+        )?))
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GeneralConfig {
@@ -82,18 +101,18 @@ impl Default for MonitoringConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct JobConfig {
     pub enabled: bool,
     pub name: String,
     pub schedule: String,
-    pub storages: Vec<String>,
     pub tag_filter: Vec<String>,
     pub tag_filter_exclude: Vec<String>,
     pub timeout: u64,
     pub concurrency: u32,
     pub retention: u32,
-    pub compression: String,
+    #[serde(deserialize_with = "deserialize_option_enum")]
+    pub compression: Option<CompressionType>,
     pub limit_bandwidth: u32,
 }
 
@@ -103,13 +122,12 @@ impl Default for JobConfig {
             enabled: false,
             name: String::default(),
             schedule: "0 0 * * *".into(),
-            storages: vec![String::default()],
             tag_filter: vec![String::default()],
             tag_filter_exclude: vec![String::default()],
             timeout: 3600,
             concurrency: 1,
             retention: 7,
-            compression: "none".into(),
+            compression: None,
             limit_bandwidth: 0,
         }
     }

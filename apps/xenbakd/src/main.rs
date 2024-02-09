@@ -2,16 +2,21 @@ use figment::{
     providers::{Format, Serialized, Toml},
     Figment,
 };
-use jobs::{vm_backup::VmBackupJob, XenbakJob};
+
 use tracing::Level;
 
-use crate::{config::AppConfig, scheduler::XenbakScheduler};
+use crate::{
+    config::AppConfig,
+    jobs::{vm_backup::VmBackupJob, XenbakJob},
+    scheduler::XenbakScheduler,
+};
 
 mod config;
 mod jobs;
 mod monitoring;
 mod scheduler;
 mod storage;
+mod xapi;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
@@ -39,7 +44,7 @@ async fn main() -> eyre::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    // creating job scheduler and adding jobs
+    // // creating job scheduler and adding jobs
     let mut scheduler = XenbakScheduler::new().await;
     for job in config.jobs.clone() {
         let backup_job = VmBackupJob::new(config.clone(), job.clone());

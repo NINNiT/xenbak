@@ -1,6 +1,6 @@
 use tokio_cron_scheduler::{Job, JobScheduler};
 
-use crate::jobs::{vm_backup::VmBackupJob, XenbakJob};
+use crate::jobs::{XenbakJob};
 
 pub struct XenbakScheduler {
     scheduler: JobScheduler,
