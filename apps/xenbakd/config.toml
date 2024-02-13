@@ -1,5 +1,6 @@
 [general]
-log_level = "debug" # debug, info, trace, warn, error
+hostname = "xen1"
+log_level = "info" # debug, info, trace, warn, error
 
 [[storage.local]]
 enabled = true
@@ -8,25 +9,26 @@ path = "/var/run/sr-mount/a69d1361-c718-d46e-63fd-49cde4db1fca/exports"
 
 [monitoring.mail]
 enabled = true
-smtp_server = ""
-smtp_port = 587
+smtp_server = "192.168.100.164"
+smtp_port = 1025
 smtp_user = ""
 smtp_password = ""
-smtp_from = ""
-smtp_to = [""]
+smtp_from = "xenbak@localhost"
+smtp_to = ["asdf@test.test"]
 [monitoring.healthchecks]
 enabled = true
-project_url = ""
-timeout = 5
+api_key = "VkSpHYVtXfkQRuhojpeUrKAwBexF-oTq"
+server = "http://192.168.100.164:8000"
+grace = 7200
+max_retry = 5
 
 [[jobs]]
 enabled = true
 name = "test"
-schedule = "0 */2 * * * *"
-tag_filter = ["test"]            # Only backup VMs with the given tags
+schedule = "0 */3 * * * *"
+tag_filter = ["backup"]          # Only backup VMs with the given tags
 tag_filter_exclude = ["exclude"] # Exclude VMs with the given tags
 timeout = 3600                   # Timeout for the backup job in seconds
-concurrency = 1                  # Number of concurrent backups
+concurrency = 3                  # Number of concurrent backups
 retention = 3                    # Retention period in days
-compression = "gzip"             # Compression type:  gzip, zstd or none
-limit_bandwidth = 0              # Limit the bandwidth in MiB/s (0 = no limit)
+compression = "zstd"             # Compression type:  gzip, zstd or none

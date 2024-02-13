@@ -1,5 +1,5 @@
 use super::{
-    error::{XApiCliError, XApiParseError},
+    error::{XApiCliError},
     parse_timestamp, UUIDs, UUID, VM,
 };
 use std::str::FromStr;

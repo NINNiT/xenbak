@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::{
-    config::{JobConfig, StorageConfig},
+    config::{JobConfig},
     jobs::JobType,
     xapi::CompressionType,
 };
@@ -18,13 +18,13 @@ pub struct StorageStatus {
 
 #[derive(Debug, Clone)]
 pub struct BackupObjectFilter {
-    job_type: Option<Vec<JobType>>,
-    vm_name: Option<Vec<String>>,
-    time_stamp: Option<(
+    pub job_type: Option<Vec<JobType>>,
+    pub vm_name: Option<Vec<String>>,
+    pub time_stamp: Option<(
         Option<chrono::DateTime<chrono::Utc>>,
         Option<chrono::DateTime<chrono::Utc>>,
     )>,
-    compression: Option<Vec<CompressionType>>,
+    pub compression: Option<Vec<CompressionType>>,
 }
 
 impl BackupObjectFilter {
@@ -135,7 +135,9 @@ pub enum StorageType {
 #[async_trait::async_trait]
 pub trait StorageHandler {
     fn storage_type(&self) -> StorageType;
+    fn job_config(&self) -> JobConfig;
     async fn status(&self) -> eyre::Result<StorageStatus>;
+    async fn initialize(&self) -> eyre::Result<()>;
     async fn list(&self, filter: BackupObjectFilter) -> eyre::Result<Vec<BackupObject>>;
     async fn rotate(&self, filter: BackupObjectFilter, retention: u32) -> eyre::Result<()>;
 }
