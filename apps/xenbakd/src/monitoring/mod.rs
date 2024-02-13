@@ -1,10 +1,10 @@
-use crate::{config::MonitoringConfig, jobs::XenbakJobStats};
+use crate::{jobs::XenbakJobStats};
 
 pub mod healthchecks;
 pub mod mail;
 
 #[async_trait::async_trait]
-pub trait MonitoringTrait {
+pub trait MonitoringTrait: Send + Sync {
     async fn success(
         &self,
         hostname: String,

@@ -2033,6 +2033,7 @@ dependencies = [
  "reqwest-middleware",
  "reqwest-retry",
  "serde",
+ "serde_json",
  "thiserror",
  "tokio",
  "tokio-cron-scheduler",

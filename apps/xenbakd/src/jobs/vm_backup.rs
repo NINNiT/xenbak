@@ -1,4 +1,4 @@
-use std::{error::Error, sync::Arc};
+use std::{sync::Arc};
 
 use eyre::Context;
 use tracing::{debug, error, info, warn};
