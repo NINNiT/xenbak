@@ -74,9 +74,6 @@ impl MonitoringTrait for HealthchecksService {
             job_name, hostname
         );
 
-
-        let job_stats = serde_json::to_string_pretty(&job_stats)?;
-
         let check = self
             .checks
             .get(&self.generate_slug(job_name, hostname).await)
@@ -103,7 +100,7 @@ impl MonitoringTrait for HealthchecksService {
             .context("Check not found")?;
 
         self.client
-            .post(format!("{}/{}", check.ping_url, "/start"))
+            .post(format!("{}/{}", check.ping_url, "start"))
             .send()
             .await?;
 
@@ -121,15 +118,13 @@ impl MonitoringTrait for HealthchecksService {
             job_name, hostname
         );
 
-        let job_stats = serde_json::to_string_pretty(&job_stats)?;
-
         let check = self
             .checks
             .get(&self.generate_slug(job_name, hostname).await)
             .context("Check not found")?;
 
         self.client
-            .post(format!("{}/{}", check.ping_url, "/fail"))
+            .post(format!("{}/{}", check.ping_url, "fail"))
             .json(&job_stats)
             .send()
             .await?;
