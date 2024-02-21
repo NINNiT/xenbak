@@ -1,7 +1,4 @@
-use super::{
-    error::{XApiCliError},
-    parse_timestamp, UUIDs, UUID, VM,
-};
+use super::{error::XApiCliError, parse_timestamp, UUIDs, UUID, VM};
 use std::str::FromStr;
 
 pub mod client;

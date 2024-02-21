@@ -20,10 +20,7 @@ pub trait XenbakJob {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct XenbakJobStats {
-    pub job_name: String,
-    pub job_type: JobType,
-    pub hostname: String,
-    pub schedule: String,
+    pub config: JobConfig,
     pub total_objects: u32,
     pub successful_objects: u32,
     pub failed_objects: u32,
@@ -34,10 +31,7 @@ pub struct XenbakJobStats {
 impl Default for XenbakJobStats {
     fn default() -> XenbakJobStats {
         XenbakJobStats {
-            job_name: "".to_string(),
-            job_type: JobType::VmBackup,
-            hostname: "".to_string(),
-            schedule: "".to_string(),
+            config: JobConfig::default(),
             total_objects: 0,
             successful_objects: 0,
             failed_objects: 0,

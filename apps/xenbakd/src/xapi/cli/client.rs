@@ -1,20 +1,57 @@
-use tokio::process::Command as AsyncCommand;
+use std::{process::Stdio, sync::Arc};
 
-use crate::xapi::{error::XApiCliError, CompressionType, SnapshotType, UUIDs, UUID, VM};
+use tokio::{process::Command as AsyncCommand};
+
+use crate::{
+    config::XenConfig,
+    storage::StorageHandler,
+    xapi::{error::XApiCliError, CompressionType, SnapshotType, UUIDs, UUID, VM},
+};
 
 use super::FromCliOutput;
 
-pub struct XApiCliClient {}
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
+pub struct XApiCliClient {
+    config: XenConfig,
+}
 
 impl XApiCliClient {
+    pub fn new(config: XenConfig) -> Self {
+        XApiCliClient { config }
+    }
+
+    pub fn get_config(&self) -> &XenConfig {
+        &self.config
+    }
+
+    pub fn get_base_command(&self) -> AsyncCommand {
+        let mut command = AsyncCommand::new("xe");
+
+        if self.config.server == "localhost" || self.config.server == "127.0.0.1" {
+            command.arg("-s").arg("127.0.0.1");
+        } else {
+            command
+                .arg("-s")
+                .arg(&self.config.server)
+                .arg("-u")
+                .arg(&self.config.username)
+                .arg("-pw")
+                .arg(&self.config.password);
+        }
+
+        command
+    }
+
     /// filter by tags and return UUIDs
     pub async fn filter_vms_by_tag(
+        &self,
         tags: Vec<String>,
         excluded_tags: Vec<String>,
     ) -> Result<Vec<VM>, XApiCliError> {
         // get VM UUIDs with the specified tags
         let tagged_uuids: Vec<String>;
-        let tagged_uuid_output = AsyncCommand::new("xe")
+        let tagged_uuid_output = self
+            .get_base_command()
             .arg("vm-list")
             .arg("tags:contains=".to_owned() + &tags.join(","))
             .arg("is-a-template=false")
@@ -34,7 +71,8 @@ impl XApiCliClient {
 
         // get VM UUIDs with the excluded tags
         let excluded_uuids: Vec<String>;
-        let excluded_uuid_output = AsyncCommand::new("xe")
+        let excluded_uuid_output = self
+            .get_base_command()
             .arg("vm-list")
             .arg("is-a-template=false")
             .arg("is-a-snapshot=false")
@@ -61,15 +99,15 @@ impl XApiCliClient {
         let mut vms: Vec<VM> = vec![];
 
         for uuid in final_uuids {
-            let vm = XApiCliClient::get_vm_by_uuid(&uuid).await?;
+            let vm = self.get_vm_by_uuid(&uuid).await?;
             vms.push(vm);
         }
 
         Ok(vms)
     }
 
-    pub async fn snapshot(vm: &VM, snapshot_type: SnapshotType) -> Result<VM, XApiCliError> {
-        let mut command = AsyncCommand::new("xe");
+    pub async fn snapshot(&self, vm: &VM, snapshot_type: SnapshotType) -> Result<VM, XApiCliError> {
+        let mut command = self.get_base_command();
 
         match snapshot_type {
             SnapshotType::Normal => {
@@ -91,15 +129,16 @@ impl XApiCliClient {
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let uuid = UUID::from_cli_output(&stdout)?;
-            XApiCliClient::get_vm_by_uuid(&uuid).await
+            self.get_vm_by_uuid(&uuid).await
         } else {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(XApiCliError::SnapshotFailure(stderr.into()));
         }
     }
 
-    pub async fn set_snapshot_name(snapshot: &VM, name: &str) -> Result<VM, XApiCliError> {
-        let output = AsyncCommand::new("xe")
+    pub async fn set_snapshot_name(&self, snapshot: &VM, name: &str) -> Result<VM, XApiCliError> {
+        let output = self
+            .get_base_command()
             .arg("snapshot-param-set")
             .arg("uuid=".to_owned() + &snapshot.uuid)
             .arg("name-label=".to_owned() + name)
@@ -107,15 +146,16 @@ impl XApiCliClient {
             .await?;
 
         if output.status.success() {
-            Ok(XApiCliClient::get_vm_by_uuid(&snapshot.uuid).await?)
+            Ok(self.get_vm_by_uuid(&snapshot.uuid).await?)
         } else {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(XApiCliError::CommandFailed(stderr.into()));
         }
     }
 
-    pub async fn delete_snapshot_by_uuid(snapshot: &UUID) -> Result<(), XApiCliError> {
-        let output = AsyncCommand::new("xe")
+    pub async fn delete_snapshot_by_uuid(&self, snapshot: &UUID) -> Result<(), XApiCliError> {
+        let output = self
+            .get_base_command()
             .arg("snapshot-uninstall")
             .arg("uuid=".to_owned() + &snapshot)
             .arg("force=true")
@@ -130,17 +170,48 @@ impl XApiCliClient {
         }
     }
 
+    // xe vm-export uuid=<VM_UUID> filename= | ssh <other_server> xe vm-import filename=/dev/stdin
+    pub async fn vm_export_to_storage(
+        &self,
+        vm: &VM,
+        storage_handler: Arc<dyn StorageHandler>,
+        backup_object: crate::storage::BackupObject,
+    ) -> eyre::Result<()> {
+        let mut command = self.get_base_command();
+
+        command
+            .arg("vm-export")
+            .arg("vm=".to_owned() + &vm.uuid)
+            .arg("filename=");
+
+        let mut child = command
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()?;
+
+        let stdout = child.stdout.take().unwrap();
+        let stderr = child.stderr.take().unwrap();
+
+        storage_handler
+            .handle_stdio_stream(backup_object, stdout, stderr)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn vm_export_to_file(
-        uuid: &str,
+        &self,
+        vm: &VM,
         filename: &str,
         compress: Option<CompressionType>,
     ) -> Result<(), XApiCliError> {
-        let mut command = AsyncCommand::new("xe");
+        let mut command = self.get_base_command();
 
         command
             .arg("vm-export")
             .arg("filename=".to_owned() + filename)
-            .arg("vm=".to_owned() + uuid);
+            .arg("vm=".to_owned() + &vm.uuid);
 
         if let Some(compress) = compress {
             command.arg("compress=".to_owned() + &compress.to_cli_arg());
@@ -156,8 +227,8 @@ impl XApiCliClient {
         }
     }
 
-    pub async fn dynamic_command(args: Vec<&str>) -> Result<String, XApiCliError> {
-        let output = AsyncCommand::new("xe").args(args).output().await?;
+    pub async fn dynamic_command(&self, args: Vec<&str>) -> Result<String, XApiCliError> {
+        let output = self.get_base_command().args(args).output().await?;
 
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
@@ -168,8 +239,9 @@ impl XApiCliClient {
         }
     }
 
-    pub async fn set_snapshot_param_not_template(snapshot: &VM) -> Result<VM, XApiCliError> {
-        let output = AsyncCommand::new("xe")
+    pub async fn set_snapshot_param_not_template(&self, snapshot: &VM) -> Result<VM, XApiCliError> {
+        let output = self
+            .get_base_command()
             .arg("snapshot-param-set")
             .arg("is-a-template=false")
             .arg("uuid=".to_owned() + &snapshot.uuid)
@@ -177,15 +249,16 @@ impl XApiCliClient {
             .await?;
 
         if output.status.success() {
-            Ok(XApiCliClient::get_vm_by_uuid(&snapshot.uuid).await?)
+            Ok(self.get_vm_by_uuid(&snapshot.uuid).await?)
         } else {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(XApiCliError::CommandFailed(stderr.into()));
         }
     }
 
-    pub async fn get_vm_by_uuid(vm_uuid: &str) -> Result<VM, XApiCliError> {
-        let output = AsyncCommand::new("xe")
+    pub async fn get_vm_by_uuid(&self, vm_uuid: &str) -> Result<VM, XApiCliError> {
+        let output = self
+            .get_base_command()
             .arg("vm-param-list")
             .arg("uuid=".to_owned() + vm_uuid)
             .output()

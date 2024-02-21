@@ -1,7 +1,15 @@
 #![allow(dead_code)]
 use serde::{de::IntoDeserializer, Deserialize, Serialize};
+use std::sync::Arc;
 
-use crate::xapi::CompressionType;
+use crate::{
+    storage::{
+        self,
+        borg::{BorgCompressionType, BorgEncryptionType},
+        StorageHandler,
+    },
+    xapi::CompressionType,
+};
 
 // deserialize "none" string for Option<SomeEnum>, e.g. for Option<CompressionType>. make it work for any source, not just JSON
 //e.g. the toml line compression = "none"             # Compression type:  gzip, zstd or none
@@ -23,14 +31,12 @@ where
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GeneralConfig {
     pub log_level: String,
-    pub hostname: String,
 }
 
 impl Default for GeneralConfig {
     fn default() -> GeneralConfig {
         GeneralConfig {
             log_level: "info".into(),
-            hostname: "localhost".into(),
         }
     }
 }
@@ -40,6 +46,9 @@ pub struct LocalStorageConfig {
     pub enabled: bool,
     pub name: String,
     pub path: String,
+    #[serde(deserialize_with = "deserialize_option_enum")]
+    pub compression: Option<CompressionType>,
+    pub retention: u32,
 }
 
 impl Default for LocalStorageConfig {
@@ -48,6 +57,35 @@ impl Default for LocalStorageConfig {
             enabled: false,
             name: String::default(),
             path: String::default(),
+            compression: None,
+            retention: 7,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct BorgLocalStorageConfig {
+    pub enabled: bool,
+    pub name: String,
+    pub repo_base_path: String,
+    #[serde(deserialize_with = "deserialize_option_enum")]
+    pub encryption: Option<BorgEncryptionType>,
+    #[serde(deserialize_with = "deserialize_option_enum")]
+    pub compression: Option<BorgCompressionType>,
+    pub retention: u32,
+    pub temp_dir: String,
+}
+
+impl Default for BorgLocalStorageConfig {
+    fn default() -> BorgLocalStorageConfig {
+        BorgLocalStorageConfig {
+            enabled: false,
+            name: String::default(),
+            repo_base_path: String::default(),
+            encryption: None,
+            compression: None,
+            retention: 7,
+            temp_dir: "/tmp/xenbakd".into(),
         }
     }
 }
@@ -55,12 +93,14 @@ impl Default for LocalStorageConfig {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct StorageConfig {
     pub local: Vec<LocalStorageConfig>,
+    pub borg_local: Vec<BorgLocalStorageConfig>,
 }
 
 impl Default for StorageConfig {
     fn default() -> StorageConfig {
         StorageConfig {
             local: vec![LocalStorageConfig::default()],
+            borg_local: vec![BorgLocalStorageConfig::default()],
         }
     }
 }
@@ -134,9 +174,47 @@ pub struct JobConfig {
     pub tag_filter: Vec<String>,
     pub tag_filter_exclude: Vec<String>,
     pub concurrency: u32,
-    pub retention: u32,
-    #[serde(deserialize_with = "deserialize_option_enum")]
-    pub compression: Option<CompressionType>,
+    pub storages: Vec<String>,
+    pub xen_hosts: Vec<String>,
+}
+
+impl JobConfig {
+    pub fn get_storages(&self, config: StorageConfig) -> Vec<Arc<dyn StorageHandler>> {
+        let mut storages: Vec<Arc<dyn StorageHandler>> = Vec::new();
+
+        let local_storage = config
+            .local
+            .iter()
+            .filter(|x| x.enabled && self.storages.contains(&x.name))
+            .map(|x| {
+                Arc::new(storage::local::LocalStorage::new(x.clone(), self.clone()))
+                    as Arc<dyn StorageHandler>
+            })
+            .collect::<Vec<Arc<dyn StorageHandler>>>();
+
+        let borg_local_storage = config
+            .borg_local
+            .iter()
+            .filter(|x| x.enabled && self.storages.contains(&x.name))
+            .map(|x| {
+                Arc::new(storage::borg::BorgStorage::new(x.clone(), self.clone()))
+                    as Arc<dyn StorageHandler>
+            })
+            .collect::<Vec<Arc<dyn StorageHandler>>>();
+
+        storages.extend(local_storage);
+        storages.extend(borg_local_storage);
+
+        storages
+    }
+
+    pub fn get_xen_configs(&self, xen_config: Vec<XenConfig>) -> Vec<XenConfig> {
+        xen_config
+            .iter()
+            .filter(|x| self.xen_hosts.contains(&x.name))
+            .cloned()
+            .collect()
+    }
 }
 
 impl Default for JobConfig {
@@ -147,9 +225,32 @@ impl Default for JobConfig {
             schedule: "0 0 * * *".into(),
             tag_filter: vec![String::default()],
             tag_filter_exclude: vec![String::default()],
+            xen_hosts: vec![String::default()],
+            storages: vec![String::default()],
             concurrency: 1,
-            retention: 7,
-            compression: None,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Hash, Eq)]
+pub struct XenConfig {
+    pub enabled: bool,
+    pub name: String,
+    pub username: String,
+    pub server: String,
+    pub password: String,
+    pub port: u16,
+}
+
+impl Default for XenConfig {
+    fn default() -> XenConfig {
+        XenConfig {
+            enabled: false,
+            name: "127.0.0.1".into(),
+            username: String::default(),
+            server: "127.0.0.1".into(),
+            password: String::default(),
+            port: 443,
         }
     }
 }
@@ -157,6 +258,7 @@ impl Default for JobConfig {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AppConfig {
     pub general: GeneralConfig,
+    pub xen: Vec<XenConfig>,
     pub storage: StorageConfig,
     pub monitoring: MonitoringConfig,
     pub jobs: Vec<JobConfig>,
@@ -169,6 +271,14 @@ impl Default for AppConfig {
             storage: StorageConfig::default(),
             monitoring: MonitoringConfig::default(),
             jobs: vec![JobConfig::default()],
+            xen: vec![XenConfig {
+                enabled: false,
+                name: String::default(),
+                username: String::default(),
+                server: String::default(),
+                password: String::default(),
+                port: 443,
+            }],
         }
     }
 }

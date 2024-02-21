@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use tokio_cron_scheduler::{Job, JobScheduler};
-use tracing::info;
+use tracing::{info};
 
 use crate::{jobs::XenbakJob, monitoring::MonitoringTrait, GlobalState};
 
@@ -46,10 +46,7 @@ impl XenbakScheduler {
                         }
 
                         for service in &monitoring_services {
-                            service
-                                .start(global_state.config.general.hostname.clone(), job.get_name())
-                                .await
-                                .unwrap();
+                            service.start(job.get_name()).await.unwrap();
                         }
 
                         // run the joby
@@ -60,22 +57,14 @@ impl XenbakScheduler {
                         if let Err(_e) = job_result {
                             for service in &monitoring_services {
                                 service
-                                    .failure(
-                                        job_stats.hostname.clone(),
-                                        job_stats.job_name.clone(),
-                                        job_stats.clone(),
-                                    )
+                                    .failure(job_stats.config.name.clone(), job_stats.clone())
                                     .await
                                     .unwrap();
                             }
                         } else {
                             for service in &monitoring_services {
                                 service
-                                    .success(
-                                        job_stats.hostname.clone(),
-                                        job_stats.job_name.clone(),
-                                        job_stats.clone(),
-                                    )
+                                    .success(job_stats.config.name.clone(), job_stats.clone())
                                     .await
                                     .unwrap();
                             }
