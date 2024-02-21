@@ -1,10 +1,17 @@
 #![allow(dead_code)]
 
+use std::str::FromStr;
+
 use tokio::io::AsyncReadExt;
 
-use crate::config::{JobConfig, LocalStorageConfig};
+use crate::{
+    config::{JobConfig, LocalStorageConfig},
+    jobs::JobType,
+};
 
-use super::{BackupObject, BackupObjectFilter, StorageHandler, StorageStatus, StorageType};
+use super::{
+    BackupObject, BackupObjectFilter, CompressionType, StorageHandler, StorageStatus, StorageType,
+};
 
 #[derive(Debug, Clone)]
 pub struct LocalStorage {
@@ -24,12 +31,58 @@ impl LocalStorage {
         }
     }
 
-    pub fn generate_full_file_path(&self, backup_object: crate::storage::BackupObject) -> String {
-        format!(
-            "{}/{}",
-            self.path,
-            backup_object.generate_name_with_extension()
-        )
+    pub fn file_name_to_backup_object(&self, file_name: String) -> crate::storage::BackupObject {
+        let parts: Vec<&str> = file_name.split("__").collect();
+        if parts.len() != 4 {
+            panic!("Invalid backup object name");
+        }
+
+        let xen_host = parts[0];
+        let job_type = JobType::from_str(parts[1]).unwrap();
+        let vm_name = parts[2];
+        let time_stamp = chrono::DateTime::parse_from_rfc3339(parts[3].split(".").next().unwrap())
+            .unwrap()
+            .to_utc();
+
+        crate::storage::BackupObject {
+            job_type,
+            xen_host: xen_host.to_string(),
+            vm_name: vm_name.to_string(),
+            time_stamp,
+            size: None,
+        }
+    }
+
+    pub fn backup_object_to_file_name(
+        &self,
+        backup_object: crate::storage::BackupObject,
+    ) -> String {
+        let base_name = format!(
+            "{}__{}__{}__{}",
+            backup_object.xen_host,
+            backup_object.job_type.to_string(),
+            backup_object.vm_name,
+            backup_object.time_stamp.to_rfc3339()
+        );
+
+        let base_extension = match backup_object.job_type {
+            JobType::VmBackup => "xva",
+        };
+
+        if self.storage_config.compression.is_none() {
+            return format!("{}.{}", base_name, base_extension);
+        } else {
+            return format!(
+                "{}.{}.{}",
+                base_name,
+                base_extension,
+                self.storage_config
+                    .compression
+                    .as_ref()
+                    .unwrap()
+                    .to_extension()
+            );
+        };
     }
 }
 
@@ -68,7 +121,12 @@ impl StorageHandler for LocalStorage {
                     eyre::eyre!("Failed to convert OsString to String: {:?}", os_string)
                 })?;
 
-                let backup_object = BackupObject::from_name_with_extension(file_name).await?;
+                let parts: Vec<&str> = file_name.split("__").collect();
+                if parts.len() != 4 {
+                    return Err(eyre::eyre!("Invalid backup object name"));
+                }
+
+                let backup_object = self.file_name_to_backup_object(file_name);
 
                 // apply filter
                 if let Some(job_type) = filter.job_type.clone() {
@@ -102,16 +160,6 @@ impl StorageHandler for LocalStorage {
                                 continue;
                             }
                         }
-                    }
-                }
-
-                if let Some(compression) = filter.compression.clone() {
-                    if let Some(backup_object_compression) = backup_object.compression.clone() {
-                        if !compression.contains(&backup_object_compression) {
-                            continue;
-                        }
-                    } else {
-                        continue;
                     }
                 }
 
@@ -149,7 +197,11 @@ impl StorageHandler for LocalStorage {
                 let to_delete = &backup_objects[self.storage_config.retention as usize..];
 
                 for backup_object in to_delete {
-                    let full_path = self.generate_full_file_path(backup_object.clone());
+                    let full_path = format!(
+                        "{}/{}",
+                        self.path,
+                        self.backup_object_to_file_name(backup_object.clone()),
+                    );
                     tokio::fs::remove_file(full_path).await?;
                 }
             }
@@ -157,16 +209,6 @@ impl StorageHandler for LocalStorage {
 
         Ok(())
     }
-    //     async fn handle_stdio_stream<T>(
-    //         &self,
-    //         backup_object: BackupObject,
-    //         stdout_stream: T,
-    //         stderr_stream: T,
-    //     ) -> eyre::Result<()>
-    //     where
-    //         T: AsyncRead + Unpin + Send;
-    // }
-    //
 
     // write stdout_stream to file, perform cleanup on error
     async fn handle_stdio_stream(
@@ -176,12 +218,26 @@ impl StorageHandler for LocalStorage {
         mut stderr_stream: tokio::process::ChildStderr,
     ) -> eyre::Result<()> {
         // get full path for the file and create a handle
-        let full_path = self.generate_full_file_path(backup_object.clone());
+        let full_path = format!(
+            "{}/{}",
+            self.path,
+            self.backup_object_to_file_name(backup_object.clone())
+        );
 
         let result = async {
             // create file and write to it from stdout_stream
             let mut file = tokio::fs::File::create(&full_path).await?;
-            tokio::io::copy(&mut stdout_stream, &mut file).await?;
+
+            match self.storage_config.compression {
+                Some(CompressionType::Zstd) => {
+                    let mut zstd = async_compression::tokio::write::ZstdEncoder::new(file);
+                    tokio::io::copy(&mut stdout_stream, &mut zstd).await?;
+                }
+                Some(CompressionType::Gzip) => {}
+                None => {
+                    tokio::io::copy(&mut stdout_stream, &mut file).await?;
+                }
+            }
 
             // check stderr for errors
             let mut stderr = Vec::new();

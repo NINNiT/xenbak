@@ -1,11 +1,11 @@
 use std::{process::Stdio, sync::Arc};
 
-use tokio::{process::Command as AsyncCommand};
+use tokio::process::Command as AsyncCommand;
 
 use crate::{
     config::XenConfig,
-    storage::StorageHandler,
-    xapi::{error::XApiCliError, CompressionType, SnapshotType, UUIDs, UUID, VM},
+    storage::{CompressionType, StorageHandler},
+    xapi::{error::XApiCliError, SnapshotType, UUIDs, UUID, VM},
 };
 
 use super::FromCliOutput;
