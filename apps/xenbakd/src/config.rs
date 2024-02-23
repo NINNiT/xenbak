@@ -4,7 +4,8 @@ use std::sync::Arc;
 
 use crate::storage::{
     self,
-    borg::{BorgCompressionType, BorgEncryptionType},
+    borg::{BorgCompressionType, BorgEncryptionType, BorgStorageRetention},
+    local::LocalCompressionType,
     CompressionType, StorageHandler,
 };
 
@@ -44,7 +45,7 @@ pub struct LocalStorageConfig {
     pub name: String,
     pub path: String,
     #[serde(deserialize_with = "deserialize_option_enum")]
-    pub compression: Option<CompressionType>,
+    pub compression: Option<LocalCompressionType>,
     pub retention: u32,
 }
 
@@ -61,27 +62,36 @@ impl Default for LocalStorageConfig {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct BorgLocalStorageConfig {
+pub struct BorgStorageConfig {
     pub enabled: bool,
     pub name: String,
-    pub repo_base_path: String,
+    pub binary_path: String,
+    pub repository: String,
+    pub ssh_key_path: Option<String>,
     #[serde(deserialize_with = "deserialize_option_enum")]
     pub encryption: Option<BorgEncryptionType>,
     #[serde(deserialize_with = "deserialize_option_enum")]
     pub compression: Option<BorgCompressionType>,
-    pub retention: u32,
+    pub retention: BorgStorageRetention,
     pub temp_dir: String,
 }
 
-impl Default for BorgLocalStorageConfig {
-    fn default() -> BorgLocalStorageConfig {
-        BorgLocalStorageConfig {
+impl Default for BorgStorageConfig {
+    fn default() -> BorgStorageConfig {
+        BorgStorageConfig {
             enabled: false,
             name: String::default(),
-            repo_base_path: String::default(),
+            binary_path: "borg".into(),
+            ssh_key_path: None,
+            repository: String::default(),
             encryption: None,
             compression: None,
-            retention: 7,
+            retention: BorgStorageRetention {
+                daily: 7,
+                weekly: 1,
+                monthly: 4,
+                yearly: 1,
+            },
             temp_dir: "/tmp/xenbakd".into(),
         }
     }
@@ -90,14 +100,14 @@ impl Default for BorgLocalStorageConfig {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct StorageConfig {
     pub local: Vec<LocalStorageConfig>,
-    pub borg_local: Vec<BorgLocalStorageConfig>,
+    pub borg: Vec<BorgStorageConfig>,
 }
 
 impl Default for StorageConfig {
     fn default() -> StorageConfig {
         StorageConfig {
             local: vec![LocalStorageConfig::default()],
-            borg_local: vec![BorgLocalStorageConfig::default()],
+            borg: vec![BorgStorageConfig::default()],
         }
     }
 }
@@ -189,18 +199,20 @@ impl JobConfig {
             })
             .collect::<Vec<Arc<dyn StorageHandler>>>();
 
-        let borg_local_storage = config
-            .borg_local
+        let borg_storage = config
+            .borg
             .iter()
             .filter(|x| x.enabled && self.storages.contains(&x.name))
             .map(|x| {
-                Arc::new(storage::borg::BorgStorage::new(x.clone(), self.clone()))
-                    as Arc<dyn StorageHandler>
+                Arc::new(storage::borg::BorgLocalStorage::new(
+                    x.clone(),
+                    self.clone(),
+                )) as Arc<dyn StorageHandler>
             })
             .collect::<Vec<Arc<dyn StorageHandler>>>();
 
         storages.extend(local_storage);
-        storages.extend(borg_local_storage);
+        storages.extend(borg_storage);
 
         storages
     }

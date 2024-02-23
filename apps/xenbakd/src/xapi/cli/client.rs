@@ -4,7 +4,7 @@ use tokio::process::Command as AsyncCommand;
 
 use crate::{
     config::XenConfig,
-    storage::{CompressionType, StorageHandler},
+    storage::{local::LocalCompressionType, CompressionType, StorageHandler},
     xapi::{error::XApiCliError, SnapshotType, UUIDs, UUID, VM},
 };
 
@@ -204,7 +204,7 @@ impl XApiCliClient {
         &self,
         vm: &VM,
         filename: &str,
-        compress: Option<CompressionType>,
+        compress: Option<LocalCompressionType>,
     ) -> Result<(), XApiCliError> {
         let mut command = self.get_base_command();
 

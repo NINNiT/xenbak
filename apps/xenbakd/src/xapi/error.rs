@@ -14,9 +14,9 @@ pub enum XApiParseError {
 pub enum XApiCliError {
     #[error("Failed to create snapshot: {0}")]
     SnapshotFailure(String),
-    #[error("Command could not be executed: {0}")]
+    #[error("'xe' command could not be executed: {0}")]
     CommandExecutionError(#[from] tokio::io::Error),
-    #[error("xe cli-command failed: {0}")]
+    #[error("'xe' cli-command failed: {0}")]
     CommandFailed(String),
     #[error("Failed to parse cli stdout to struct: {0}")]
     XApiParseError(#[from] XApiParseError),

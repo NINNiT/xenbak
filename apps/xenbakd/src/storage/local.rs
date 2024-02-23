@@ -2,6 +2,7 @@
 
 use std::str::FromStr;
 
+use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
 
 use crate::{
@@ -12,6 +13,38 @@ use crate::{
 use super::{
     BackupObject, BackupObjectFilter, CompressionType, StorageHandler, StorageStatus, StorageType,
 };
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub enum LocalCompressionType {
+    #[serde(rename = "gzip")]
+    Gzip,
+    #[serde(rename = "zstd")]
+    Zstd,
+}
+
+impl CompressionType for LocalCompressionType {
+    fn to_extension(&self) -> String {
+        match self {
+            LocalCompressionType::Gzip => "gz".to_string(),
+            LocalCompressionType::Zstd => "zst".to_string(),
+        }
+    }
+
+    fn from_extension(extension: &str) -> eyre::Result<LocalCompressionType> {
+        match extension {
+            "gz" => Ok(LocalCompressionType::Gzip),
+            "zst" => Ok(LocalCompressionType::Zstd),
+            _ => Err(eyre::eyre!("Invalid compression extension")),
+        }
+    }
+
+    fn to_cli_arg(&self) -> String {
+        match self {
+            LocalCompressionType::Gzip => "gzip".to_string(),
+            LocalCompressionType::Zstd => "zstd".to_string(),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct LocalStorage {
@@ -129,6 +162,12 @@ impl StorageHandler for LocalStorage {
                 let backup_object = self.file_name_to_backup_object(file_name);
 
                 // apply filter
+                if let Some(xen_host) = filter.xen_host.clone() {
+                    if !xen_host.contains(&backup_object.xen_host) {
+                        continue;
+                    }
+                }
+
                 if let Some(job_type) = filter.job_type.clone() {
                     if !job_type.contains(&backup_object.job_type) {
                         continue;
@@ -229,11 +268,11 @@ impl StorageHandler for LocalStorage {
             let mut file = tokio::fs::File::create(&full_path).await?;
 
             match self.storage_config.compression {
-                Some(CompressionType::Zstd) => {
+                Some(LocalCompressionType::Zstd) => {
                     let mut zstd = async_compression::tokio::write::ZstdEncoder::new(file);
                     tokio::io::copy(&mut stdout_stream, &mut zstd).await?;
                 }
-                Some(CompressionType::Gzip) => {}
+                Some(LocalCompressionType::Gzip) => {}
                 None => {
                     tokio::io::copy(&mut stdout_stream, &mut file).await?;
                 }
