@@ -125,6 +125,26 @@ impl BorgLocalStorage {
             size: None,
         }
     }
+
+    pub fn get_rsh_env(&self) -> Option<String> {
+        if let Some(ssh_key_path) = &self.storage_config.ssh_key_path {
+            Some(format!(
+                "ssh -o StrictHostKeyChecking=no -i {}",
+                ssh_key_path
+            ))
+        } else {
+            None
+        }
+    }
+
+    pub fn borg_base_cmd(&self) -> AsyncCommand {
+        let mut cmd = AsyncCommand::new("borg");
+        cmd.env("BORG_REPO", self.storage_config.repository.clone());
+        if let Some(rsh) = self.get_rsh_env() {
+            cmd.env("BORG_RSH", rsh);
+        }
+        cmd
+    }
 }
 
 #[async_trait::async_trait]
@@ -146,13 +166,8 @@ impl StorageHandler for BorgLocalStorage {
         let _enter = span.enter();
 
         let result = async {
-            let mut init_cmd = AsyncCommand::new("borg");
+            let mut init_cmd = self.borg_base_cmd();
             init_cmd.arg("init");
-
-            init_cmd.env("BORG_REPO", self.storage_config.repository.clone());
-            if let Some(ssh_key_path) = &self.storage_config.ssh_key_path {
-                init_cmd.env("BORG_RSH", format!("ssh -i {}", ssh_key_path));
-            }
 
             init_cmd
                 .arg("--encryption")
@@ -192,14 +207,8 @@ impl StorageHandler for BorgLocalStorage {
     }
 
     async fn rotate(&self, filter: BackupObjectFilter) -> eyre::Result<()> {
-        let mut prune_cmd = AsyncCommand::new("borg");
+        let mut prune_cmd = self.borg_base_cmd();
         prune_cmd.arg("prune");
-
-        if let Some(ssh_key_path) = &self.storage_config.ssh_key_path {
-            prune_cmd.env("BORG_RSH", format!("ssh -i {}", ssh_key_path));
-        }
-
-        prune_cmd.env("BORG_REPO", self.storage_config.repository.clone());
 
         prune_cmd
             .arg("--keep-daily")
@@ -248,14 +257,8 @@ impl StorageHandler for BorgLocalStorage {
         }
 
         info!("Compacting borg repository...");
-        let mut compact_cmd = AsyncCommand::new("borg");
+        let mut compact_cmd = self.borg_base_cmd();
         compact_cmd.arg("compact");
-
-        if let Some(ssh_key_path) = &self.storage_config.ssh_key_path {
-            compact_cmd.env("BORG_RSH", format!("ssh -i {}", ssh_key_path));
-        }
-
-        compact_cmd.env("BORG_REPO", self.storage_config.repository.clone());
 
         let compact_output = compact_cmd.output().await?;
 
@@ -313,18 +316,12 @@ impl StorageHandler for BorgLocalStorage {
                 self.backup_object_to_archive_name(backup_object.clone())
             );
 
-            let mut borg_cmd = AsyncCommand::new("borg");
+            let mut borg_cmd = self.borg_base_cmd();
             borg_cmd.arg("create");
-
-            if let Some(ssh_key_path) = &self.storage_config.ssh_key_path {
-                borg_cmd.env("BORG_RSH", format!("ssh -i {}", ssh_key_path));
-            }
 
             if let Some(compression) = &self.storage_config.compression {
                 borg_cmd.arg("--compression").arg(compression.to_cli_arg());
             }
-
-            borg_cmd.env("BORG_REPO", self.storage_config.repository.clone());
 
             borg_cmd.arg(
                 format!(
