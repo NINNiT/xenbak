@@ -200,7 +200,7 @@ impl XApiCliClient {
         Ok(())
     }
 
-    pub async fn vm_export_to_file(
+    pub async fn _vm_export_to_file(
         &self,
         vm: &VM,
         filename: &str,

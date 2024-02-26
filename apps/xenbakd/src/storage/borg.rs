@@ -144,6 +144,7 @@ impl BorgLocalStorage {
         if let Some(rsh) = self.get_rsh_env() {
             cmd.env("BORG_RSH", rsh);
         }
+        cmd.arg("--lock-wait").arg("300");
         cmd
     }
 }
@@ -208,6 +209,15 @@ impl StorageHandler for BorgLocalStorage {
     }
 
     async fn rotate(&self, filter: BackupObjectFilter) -> eyre::Result<()> {
+        if self.storage_config.retention.daily == 0
+            && self.storage_config.retention.weekly == 0
+            && self.storage_config.retention.monthly == 0
+            && self.storage_config.retention.yearly == 0
+        {
+            info!("Retention is set to 0, skipping rotation...");
+            return Ok(());
+        }
+
         let mut prune_cmd = self.borg_base_cmd();
         prune_cmd.arg("prune");
 
@@ -288,12 +298,15 @@ impl StorageHandler for BorgLocalStorage {
                 temp_file.file_path().clone().as_os_str().to_string_lossy()
             );
 
-            let tempfile_copy = tokio::io::copy(&mut stdout_stream, &mut temp_file).await?;
+            const BUFFER_SIZE: usize = 1024 * 1024 * 10;
+            let mut stdout_buffered = tokio::io::BufReader::with_capacity(BUFFER_SIZE, &mut stdout_stream);
+            let mut stderr_buffered = tokio::io::BufReader::new(&mut stderr_stream);
+            let tempfile_copy = tokio::io::copy(&mut stdout_buffered, &mut temp_file).await?;
 
             debug!("Wrote {} bytes to temporary file", tempfile_copy);
 
             let mut stderr = Vec::new();
-            stderr_stream.read_to_end(&mut stderr).await?;
+            stderr_buffered.read_to_end(&mut stderr).await?;
             if !stderr.is_empty() {
                 let stderr = String::from_utf8_lossy(&stderr);
                 return Err(eyre::eyre!(
