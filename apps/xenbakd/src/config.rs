@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::storage::{
     self,
     borg::{BorgCompressionType, BorgEncryptionType, BorgStorageRetention},
-    local::LocalCompressionType,
+    local::{LocalCompressionType, LocalStorageRetention},
     CompressionType, StorageHandler,
 };
 
@@ -46,7 +46,7 @@ pub struct LocalStorageConfig {
     pub path: String,
     #[serde(deserialize_with = "deserialize_option_enum")]
     pub compression: Option<LocalCompressionType>,
-    pub retention: u32,
+    pub retention: LocalStorageRetention,
 }
 
 impl Default for LocalStorageConfig {

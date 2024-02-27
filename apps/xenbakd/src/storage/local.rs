@@ -14,6 +14,14 @@ use super::{
     BackupObject, BackupObjectFilter, CompressionType, StorageHandler, StorageStatus, StorageType,
 };
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct LocalStorageRetention {
+    pub daily: u32,
+    pub weekly: u32,
+    pub monthly: u32,
+    pub yearly: u32,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub enum LocalCompressionType {
     #[serde(rename = "gzip")]
@@ -208,7 +216,6 @@ impl StorageHandler for LocalStorage {
 
         Ok(backup_objects)
     }
-
     async fn rotate(&self, filter: BackupObjectFilter) -> eyre::Result<()> {
         let backup_objects = self.list(filter).await?;
 
@@ -217,7 +224,8 @@ impl StorageHandler for LocalStorage {
 
         for backup_object in backup_objects {
             let key = format!(
-                "{}__{}",
+                "{}__{}__{}",
+                backup_object.xen_host,
                 backup_object.job_type.to_string(),
                 backup_object.vm_name
             );
@@ -229,20 +237,49 @@ impl StorageHandler for LocalStorage {
             }
         }
 
-        for (_key, mut backup_objects) in vm_job_type_map {
-            backup_objects.sort_by(|a, b| b.time_stamp.cmp(&a.time_stamp));
+        let retention = self.storage_config.retention.clone();
 
-            if backup_objects.len() > self.storage_config.retention as usize {
-                let to_delete = &backup_objects[self.storage_config.retention as usize..];
+        for (key, mut backup_objects) in vm_job_type_map {
+            backup_objects.sort_by(|a, b| a.time_stamp.cmp(&b.time_stamp));
 
-                for backup_object in to_delete {
-                    let full_path = format!(
-                        "{}/{}",
-                        self.path,
-                        self.backup_object_to_file_name(backup_object.clone()),
-                    );
-                    tokio::fs::remove_file(full_path).await?;
+            let mut daily: u32 = 0;
+            let mut weekly: u32 = 0;
+            let mut monthly: u32 = 0;
+            let mut yearly: u32 = 0;
+
+            let mut to_remove = vec![];
+
+            for backup_object in backup_objects {
+                let today = chrono::Utc::now();
+                let duration = today - backup_object.time_stamp;
+
+                if duration.num_days() <= 1 {
+                    daily += 1;
+                    if daily > retention.daily {
+                        to_remove.push(backup_object);
+                    }
+                } else if duration.num_days() <= 7 {
+                    weekly += 1;
+                    if weekly > retention.weekly {
+                        to_remove.push(backup_object);
+                    }
+                } else if duration.num_days() <= 30 {
+                    monthly += 1;
+                    if monthly > retention.monthly {
+                        to_remove.push(backup_object);
+                    }
+                } else if duration.num_days() <= 365 {
+                    yearly += 1;
+                    if yearly > retention.yearly {
+                        to_remove.push(backup_object);
+                    }
                 }
+            }
+
+            for backup_object in to_remove {
+                let file_name = self.backup_object_to_file_name(backup_object);
+                let full_path = format!("{}/{}", self.path, file_name);
+                tokio::fs::remove_file(full_path).await?;
             }
         }
 
@@ -283,17 +320,6 @@ impl StorageHandler for LocalStorage {
                     tokio::io::copy(&mut stdout_buffered, &mut file).await?;
                 }
             }
-
-            // match self.storage_config.compression {
-            //     Some(LocalCompressionType::Zstd) => {
-            //         let mut zstd = async_compression::tokio::write::ZstdEncoder::new(file);
-            //         tokio::io::copy(&mut stdout_stream, &mut zstd).await?;
-            //     }
-            //     Some(LocalCompressionType::Gzip) => {}
-            //     None => {
-            //         tokio::io::copy(&mut stdout_stream, &mut file).await?;
-            //     }
-            // }
 
             // check stderr for errors
             let mut stderr = Vec::new();
