@@ -167,7 +167,20 @@ impl StorageHandler for BorgLocalStorage {
         let span = tracing::span!(tracing::Level::DEBUG, "BorgLocalStorage::initialize");
         let _enter = span.enter();
 
-        let result = async {
+        let temp_dir_result: eyre::Result<()> = async {
+            tokio::fs::create_dir_all(&self.storage_config.temp_dir)
+                .await
+                .wrap_err("Failed to create temporary directory for borg storage")?;
+
+            Ok(())
+        }
+        .await;
+
+        if let Err(e) = temp_dir_result {
+            return Err(e);
+        }
+
+        let borg_init_result: eyre::Result<()> = async {
             let mut init_cmd = self.borg_base_cmd();
             init_cmd.arg("init");
 
@@ -198,7 +211,11 @@ impl StorageHandler for BorgLocalStorage {
         }
         .await;
 
-        result
+        if let Err(e) = borg_init_result {
+            return Err(e);
+        }
+
+        borg_init_result
     }
 
     async fn list(
@@ -292,6 +309,7 @@ impl StorageHandler for BorgLocalStorage {
         let mut temp_file = TempFile::new_in(PathBuf::from(&self.storage_config.temp_dir))
             .await
             .wrap_err("Failed to create temporary file for borg backup stream")?;
+
         let tempfile_results = async {
             debug!(
                 "Writing export stream to temporary file {}...",

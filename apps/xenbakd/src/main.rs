@@ -18,6 +18,7 @@ use crate::{
     jobs::{vm_backup::VmBackupJob, XenbakJob},
     monitoring::healthchecks::HealthchecksManagementApiTrait,
     scheduler::XenbakScheduler,
+    storage::StorageHandler,
 };
 use clap::Parser;
 use colored::Colorize;
@@ -39,12 +40,6 @@ async fn main() -> eyre::Result<()> {
     // parse cli args
     let cli = cli::XenbakdCli::parse();
     let config_path = cli.config;
-
-    // match clap cli
-    match cli.subcmd {
-        _ => {}
-    }
-
     // load default config, then override/merge using config.toml
     let mut config = Figment::from(Serialized::defaults(AppConfig::default()))
         .merge(Toml::file(config_path))
@@ -61,6 +56,7 @@ async fn main() -> eyre::Result<()> {
         _ => Level::INFO,
     };
     let subscriber = tracing_subscriber::fmt::Subscriber::builder()
+        .with_ansi(false)
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .with_max_level(log_level)
         .finish();
@@ -123,18 +119,37 @@ async fn main() -> eyre::Result<()> {
         healthchecks_service,
     });
 
-    // creating job scheduler and adding jobs
-    let mut scheduler = XenbakScheduler::new().await;
-    for job in config.jobs.clone() {
-        if !job.enabled {
-            continue;
+    // match clap cli
+    match cli.subcmd {
+        cli::SubCommand::Daemon(_) => {
+            let mut scheduler = XenbakScheduler::new().await;
+            for job in config.jobs.clone() {
+                if !job.enabled {
+                    continue;
+                }
+                let backup_job = VmBackupJob::new(global_state.clone(), job.clone());
+                scheduler.add_job(backup_job, global_state.clone()).await?;
+            }
+            // start scheduler
+            scheduler.start().await;
+            tokio::signal::ctrl_c().await.unwrap();
         }
-        let backup_job = VmBackupJob::new(global_state.clone(), job.clone());
-        scheduler.add_job(backup_job, global_state.clone()).await?;
+        cli::SubCommand::Run(run) => {
+            let mut scheduler = XenbakScheduler::new().await;
+
+            for job in run.jobs {
+                let job = config
+                    .jobs
+                    .iter()
+                    .find(|j| j.name == job)
+                    .expect("Given Job not found in config");
+
+                let backup_job = VmBackupJob::new(global_state.clone(), job.clone());
+                scheduler.run_once(backup_job, global_state.clone()).await?;
+            }
+        }
     }
 
-    // start scheduler
-    scheduler.start().await;
     tokio::signal::ctrl_c().await.unwrap();
 
     Ok(())

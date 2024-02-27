@@ -28,18 +28,18 @@ port = 443
 [[storage.local]]
 enabled = true
 name = "local"
-path = "/var/run/sr-mount/a69d1361-c718-d46e-63fd-49cde4db1fca/exports"
-compression = "zstd"                                                    # gzip, zstd or none 
-retention = 3                                                           # Number of backups to keep
+path = "/mnt/storage/local"
+compression = "zstd"        # gzip, zstd or none 
+retention = 3               # Number of backups to keep
 
 # storage handler for local borg repositories (e.g. NFS, CIFS, local filesystem)
 [[storage.borg]]
 enabled = true
 name = "borg"
-binary_path = "/usr/bin/borg"                                  # path to the borg binary
-temp_dir = "/tmp/xenbakd"                                      # borg needs a temporary directory to store the backup before it is uploaded to the repository
-repository = "ssh://root@192.168.100.148:22/root/borgrepo"     # path to the borg repository (can be local or remote)
-ssh_key_path = "/etc/xenbakd/id_rsa"                           # (optional) path to the ssh key for remote borg repository, ignored on local
+binary_path = "/usr/bin/borg"        # path to the borg binary
+temp_dir = "/mnt/storage/tmp"        # borg needs a temporary directory to store the backup before it is uploaded to the repository
+repository = "/mnt/storage/borgrepo" # path to the borg repository (can be local or remote)
+#ssh_key_path = ""                           # (optional) path to the ssh key for remote borg repository, ignored on local
 encryption = "none"                                            # repokey-blake2, repokey, keyfile-blake2, keyfile, none
 compression = "zstd"
 retention = { daily = 2, weekly = 7, monthly = 4, yearly = 1 } # Number of backups to keep

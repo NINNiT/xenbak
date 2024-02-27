@@ -2,7 +2,10 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{config::JobConfig, jobs::JobType};
+use crate::{
+    config::{AppConfig, JobConfig},
+    jobs::JobType,
+};
 
 pub mod borg;
 pub mod local;
