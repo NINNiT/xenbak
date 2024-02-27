@@ -139,7 +139,7 @@ impl HealthchecksManagementApiTrait for HealthchecksService {
         tag_filter: Option<Vec<String>>,
         slug_filter: Option<String>,
     ) -> eyre::Result<HealthchecksListChecksResponse> {
-        let url = format!("{}/api/v3/checks", self.config.server);
+        let url = format!("{}/api/v2/checks", self.config.server);
         let mut request = self
             .client
             .get(&url)
@@ -188,7 +188,7 @@ impl HealthchecksManagementApiTrait for HealthchecksService {
 
             debug!(name);
 
-            let create_url = format!("{}/api/v3/checks/", self.config.server);
+            let create_url = format!("{}/api/v2/checks/", self.config.server);
 
             let request = HealthchecksCreateCheckRequest {
                 name: name.clone(),
