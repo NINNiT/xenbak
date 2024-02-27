@@ -78,8 +78,10 @@ impl MonitoringTrait for HealthchecksService {
             .get(&self.generate_slug(job_name).await)
             .context("Check not found")?;
 
+        let uuid = check.ping_url.split('/').last().unwrap();
+
         self.client
-            .post(check.ping_url.clone())
+            .post(format!("{}/{}", self.config.server, uuid))
             .json(&job_stats)
             .send()
             .await?;
@@ -95,8 +97,10 @@ impl MonitoringTrait for HealthchecksService {
             .get(&self.generate_slug(job_name).await)
             .context("Check not found")?;
 
+        let uuid = check.ping_url.split('/').last().unwrap();
+
         self.client
-            .post(format!("{}/{}", check.ping_url, "start"))
+            .post(format!("{}/{}/{}", self.config.server, uuid, "start"))
             .send()
             .await?;
 
@@ -111,8 +115,10 @@ impl MonitoringTrait for HealthchecksService {
             .get(&self.generate_slug(job_name).await)
             .context("Check not found")?;
 
+        let uuid = check.ping_url.split('/').last().unwrap();
+
         self.client
-            .post(format!("{}/{}", check.ping_url, "fail"))
+            .post(format!("{}/{}/{}", self.config.server, uuid, "start"))
             .json(&job_stats)
             .send()
             .await?;
