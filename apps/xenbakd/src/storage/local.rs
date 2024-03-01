@@ -288,8 +288,8 @@ impl StorageHandler for LocalStorage {
     async fn handle_stdio_stream(
         &self,
         backup_object: BackupObject,
-        mut stdout_stream: tokio::process::ChildStdout,
-        mut stderr_stream: tokio::process::ChildStderr,
+        stdout_stream: tokio::process::ChildStdout,
+        stderr_stream: tokio::process::ChildStderr,
     ) -> eyre::Result<()> {
         // get full path for the file and create a handle
         let full_path = format!(

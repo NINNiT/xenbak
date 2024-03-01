@@ -1,9 +1,9 @@
-use std::str::FromStr;
 
-use serde::{Deserialize, Serialize};
+
+
 
 use crate::{
-    config::{AppConfig, JobConfig},
+    config::{JobConfig},
     jobs::JobType,
 };
 
@@ -61,7 +61,7 @@ impl BackupObject {
         vm_name: String,
         xen_host: String,
         time_stamp: chrono::DateTime<chrono::Utc>,
-        size: Option<u64>,
+        _size: Option<u64>,
     ) -> Self {
         BackupObject {
             job_type,

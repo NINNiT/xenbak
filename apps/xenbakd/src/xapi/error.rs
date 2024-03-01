@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+#[allow(dead_code)]
 #[derive(Debug, Error)]
 pub enum XApiParseError {
     #[error("Failed to parse xen timestamp")]

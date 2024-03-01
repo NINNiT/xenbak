@@ -5,8 +5,7 @@ use std::sync::Arc;
 use crate::storage::{
     self,
     borg::{BorgCompressionType, BorgEncryptionType, BorgStorageRetention},
-    local::{LocalCompressionType, LocalStorageRetention},
-    CompressionType, StorageHandler,
+    local::{LocalCompressionType}, StorageHandler,
 };
 
 // deserialize "none" string for Option<SomeEnum>, e.g. for Option<CompressionType>. make it work for any source, not just JSON
