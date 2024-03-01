@@ -14,9 +14,10 @@ pub struct MailService {
 impl MailService {
     pub async fn from_config(config: MailConfig) -> eyre::Result<Self> {
         // create mailer
-        let mut mailer = AsyncSmtpTransport::<lettre::Tokio1Executor>::relay(&config.smtp_server)?
-            .port(config.smtp_port)
-            .tls(lettre::transport::smtp::client::Tls::None);
+        let mut mailer =
+            AsyncSmtpTransport::<lettre::Tokio1Executor>::starttls_relay(&config.smtp_server)?
+                .port(config.smtp_port);
+
         match (config.smtp_user.as_str(), config.smtp_password.as_str()) {
             ("", "") => (),
             (user, pass) => {
