@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
@@ -13,46 +11,6 @@ use crate::{
 use super::{
     BackupObject, BackupObjectFilter, CompressionType, StorageHandler, StorageStatus, StorageType,
 };
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct LocalStorageRetention {
-    pub daily: u32,
-    pub weekly: u32,
-    pub monthly: u32,
-    pub yearly: u32,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-pub enum LocalCompressionType {
-    #[serde(rename = "gzip")]
-    Gzip,
-    #[serde(rename = "zstd")]
-    Zstd,
-}
-
-impl CompressionType for LocalCompressionType {
-    fn to_extension(&self) -> String {
-        match self {
-            LocalCompressionType::Gzip => "gz".to_string(),
-            LocalCompressionType::Zstd => "zst".to_string(),
-        }
-    }
-
-    fn from_extension(extension: &str) -> eyre::Result<LocalCompressionType> {
-        match extension {
-            "gz" => Ok(LocalCompressionType::Gzip),
-            "zst" => Ok(LocalCompressionType::Zstd),
-            _ => Err(eyre::eyre!("Invalid compression extension")),
-        }
-    }
-
-    fn to_cli_arg(&self) -> String {
-        match self {
-            LocalCompressionType::Gzip => "gzip".to_string(),
-            LocalCompressionType::Zstd => "zstd".to_string(),
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct LocalStorage {
@@ -217,14 +175,6 @@ impl StorageHandler for LocalStorage {
         Ok(backup_objects)
     }
 
-    // #[derive(Debug, Clone, Deserialize, Serialize)]
-    // pub struct LocalStorageRetention {
-    //     pub daily: u32,
-    //     pub weekly: u32,
-    //     pub monthly: u32,
-    //     pub yearly: u32,
-    // }
-
     async fn rotate(&self, filter: BackupObjectFilter) -> eyre::Result<()> {
         let backup_objects = self.list(filter).await?;
 
@@ -246,7 +196,7 @@ impl StorageHandler for LocalStorage {
             }
         }
 
-        // keep daily, weekly, monthly, yearly backups based on retention
+        // keep the last N backups
         for (_key, mut backup_objects) in vm_job_type_map {
             backup_objects.sort_by(|a, b| b.time_stamp.cmp(&a.time_stamp));
 
@@ -264,27 +214,10 @@ impl StorageHandler for LocalStorage {
             }
         }
 
-        // for (_key, mut backup_objects) in vm_job_type_map {
-        //     backup_objects.sort_by(|a, b| b.time_stamp.cmp(&a.time_stamp));
-        //
-        //     if backup_objects.len() > self.storage_config.retention as usize {
-        //         let to_delete = &backup_objects[self.storage_config.retention as usize..];
-        //
-        //         for backup_object in to_delete {
-        //             let full_path = format!(
-        //                 "{}/{}",
-        //                 self.path,
-        //                 self.backup_object_to_file_name(backup_object.clone()),
-        //             );
-        //             tokio::fs::remove_file(full_path).await?;
-        //         }
-        //     }
-        // }
-
         Ok(())
     }
 
-    // write stdout_stream to file, perform cleanup on error
+    // receives an file stream fro m the XAPI client and handles I/O
     async fn handle_stdio_stream(
         &self,
         backup_object: BackupObject,
@@ -302,7 +235,7 @@ impl StorageHandler for LocalStorage {
             // create file and write to it from stdout_stream
             let mut file = tokio::fs::File::create(&full_path).await?;
 
-            // set buffer size
+            // create a buffered stream reader for smoother I/O
             const BUFFER_SIZE: usize = 1024 * 1024 * 10;
             let mut stdout_buffered =
                 tokio::io::BufReader::with_capacity(BUFFER_SIZE, stdout_stream);
@@ -313,7 +246,10 @@ impl StorageHandler for LocalStorage {
                     let mut zstd = async_compression::tokio::write::ZstdEncoder::new(file);
                     tokio::io::copy(&mut stdout_buffered, &mut zstd).await?;
                 }
-                Some(LocalCompressionType::Gzip) => {}
+                Some(LocalCompressionType::Gzip) => {
+                    let mut gzip = async_compression::tokio::write::GzipEncoder::new(file);
+                    tokio::io::copy(&mut stdout_buffered, &mut gzip).await?;
+                }
                 None => {
                     tokio::io::copy(&mut stdout_buffered, &mut file).await?;
                 }
@@ -340,5 +276,45 @@ impl StorageHandler for LocalStorage {
         }
 
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct LocalStorageRetention {
+    pub daily: u32,
+    pub weekly: u32,
+    pub monthly: u32,
+    pub yearly: u32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub enum LocalCompressionType {
+    #[serde(rename = "gzip")]
+    Gzip,
+    #[serde(rename = "zstd")]
+    Zstd,
+}
+
+impl CompressionType for LocalCompressionType {
+    fn to_extension(&self) -> String {
+        match self {
+            LocalCompressionType::Gzip => "gz".to_string(),
+            LocalCompressionType::Zstd => "zst".to_string(),
+        }
+    }
+
+    fn from_extension(extension: &str) -> eyre::Result<LocalCompressionType> {
+        match extension {
+            "gz" => Ok(LocalCompressionType::Gzip),
+            "zst" => Ok(LocalCompressionType::Zstd),
+            _ => Err(eyre::eyre!("Invalid compression extension")),
+        }
+    }
+
+    fn to_cli_arg(&self) -> String {
+        match self {
+            LocalCompressionType::Gzip => "gzip".to_string(),
+            LocalCompressionType::Zstd => "zstd".to_string(),
+        }
     }
 }

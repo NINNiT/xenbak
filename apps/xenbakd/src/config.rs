@@ -5,7 +5,8 @@ use std::sync::Arc;
 use crate::storage::{
     self,
     borg::{BorgCompressionType, BorgEncryptionType, BorgStorageRetention},
-    local::{LocalCompressionType}, StorageHandler,
+    local::LocalCompressionType,
+    StorageHandler,
 };
 
 // deserialize "none" string for Option<SomeEnum>, e.g. for Option<CompressionType>. make it work for any source, not just JSON
@@ -182,6 +183,8 @@ pub struct JobConfig {
     pub concurrency: u32,
     pub storages: Vec<String>,
     pub xen_hosts: Vec<String>,
+    pub use_existing_snapshot: bool,
+    pub use_existing_snapshot_age: Option<i64>,
 }
 
 impl JobConfig {
@@ -236,6 +239,8 @@ impl Default for JobConfig {
             xen_hosts: vec![String::default()],
             storages: vec![String::default()],
             concurrency: 1,
+            use_existing_snapshot: false,
+            use_existing_snapshot_age: Some(3600),
         }
     }
 }

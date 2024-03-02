@@ -27,22 +27,22 @@ port = 443
 # storage handler for local paths (e.g. NFS, CIFS, local filesystem). does not need temporary space
 [[storage.local]]
 enabled = true
-name = "local"
-path = "/mnt/storage/local"
-compression = "zstd"                                           # gzip, zstd or none 
-retention = { daily = 7, weekly = 1, monthly = 1, yearly = 1 } # Number of backups to keep
+name = "local"              # name of the storage handler
+path = "/mnt/storage/local" # path to the local storage directory
+compression = "zstd"        # gzip, zstd or none 
+retention = 3               # keep the last N backups
 
 # storage handler for local borg repositories (e.g. NFS, CIFS, local filesystem)
 [[storage.borg]]
 enabled = true
-name = "borg"
-binary_path = "/usr/bin/borg"        # path to the borg binary
-temp_dir = "/mnt/storage/tmp"        # borg needs a temporary directory to store the backup before it is uploaded to the repository
-repository = "/mnt/storage/borgrepo" # path to the borg repository (can be local or remote)
-#ssh_key_path = ""                           # (optional) path to the ssh key for remote borg repository, ignored on local
+name = "borg"                                                  # name of the storage handler
+binary_path = "/usr/bin/borg"                                  # path to the borg binary
+temp_dir = "/mnt/storage/tmp"                                  # borg needs a temporary directory to store the backup before it is uploaded to the repository
+repository = "/mnt/storage/borgrepo"                           # path to the borg repository (can be local or remote)
 encryption = "none"                                            # repokey-blake2, repokey, keyfile-blake2, keyfile, none
-compression = "zstd"
+compression = "zstd"                                           # all of the borg compression algorithms
 retention = { daily = 7, weekly = 1, monthly = 1, yearly = 1 } # Number of backups to keep
+#ssh_key_path = ""                                              # (optional) path to the ssh key for remote borg repository, ignored on local
 
 [[jobs]]
 enabled = true
@@ -53,3 +53,5 @@ tag_filter_exclude = ["exclude"] # Exclude VMs with the given tags
 concurrency = 2                  # Number of concurrent backups ()
 storages = ["borg"]              # Storage to use for the backup
 xen_hosts = ["xen1"]             # Xen hosts to backup
+use_existing_snapshot = false    # Use an existing snapshots instead of creating a new one, if available (default: false) 
+use_existing_snapshot_age = 3600 # Define the maximum age of an existing snapshot in seconds (default: 3600)

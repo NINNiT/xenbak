@@ -47,6 +47,6 @@ reqwest-retry = "0.3.0"
 colored = "2.1.0"
 serde_json = "1.0.113"
 clap = { version = "4.5.0", features = ["derive"] }
-async-compression = { version = "0.4.6", features = ["zstd", "tokio"] }
+async-compression = { version = "0.4.6", features = ["zstd", "tokio", "gzip"] }
 uuid = { version = "1.7.0", features = ["v4"] }
 async-tempfile = { version = "0.5.0", features = ["uuid"] }
