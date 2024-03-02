@@ -73,7 +73,7 @@ impl MonitoringTrait for MailService {
         let email = lettre::Message::builder()
             .from(self.from.parse()?)
             .to(self.to.parse()?)
-            .subject(format!("Success: Backup Job '{}'", job_name).as_str())
+            .subject(format!("xenbakd | Success: Backup Job '{}'", job_name).as_str())
             .body(body)?;
 
         match self.mailer.send(email).await {
@@ -89,7 +89,7 @@ impl MonitoringTrait for MailService {
         let email = lettre::Message::builder()
             .from(self.from.parse()?)
             .to(self.to.parse()?)
-            .subject(format!("Failure: Backup Job '{}'", job_name).as_str())
+            .subject(format!("xenbakd | Failure: Backup Job '{}'", job_name).as_str())
             .body(body)?;
 
         match self.mailer.send(email).await {
