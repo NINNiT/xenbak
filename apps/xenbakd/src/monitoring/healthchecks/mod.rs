@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use eyre::ContextCompat;
-use reqwest::header::HeaderMap;
+use reqwest::{header::HeaderMap, Url};
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 
@@ -23,6 +23,7 @@ use super::MonitoringTrait;
 #[derive(Clone, Debug)]
 pub struct HealthchecksService {
     config: HealthchecksConfig,
+    server: Url,
     client: ClientWithMiddleware,
     checks: HashMap<String, HealthchecksCheckInfo>,
 }
@@ -42,8 +43,9 @@ impl HealthchecksService {
         .build();
 
         HealthchecksService {
-            config,
+            config: config.clone(),
             client,
+            server: Url::parse(&config.server).expect("Failed to parse healthchecks.io server url"),
             checks: HashMap::new(),
         }
     }
@@ -80,11 +82,9 @@ impl MonitoringTrait for HealthchecksService {
 
         let uuid = check.ping_url.split('/').last().unwrap();
 
-        self.client
-            .post(format!("{}/{}", self.config.server, uuid))
-            .json(&job_stats)
-            .send()
-            .await?;
+        let mut url = self.server.clone();
+        url.set_path(&format!("/ping/{}", uuid));
+        self.client.post(url).json(&job_stats).send().await?;
 
         Ok(())
     }
@@ -99,10 +99,9 @@ impl MonitoringTrait for HealthchecksService {
 
         let uuid = check.ping_url.split('/').last().unwrap();
 
-        self.client
-            .post(format!("{}/{}/{}", self.config.server, uuid, "start"))
-            .send()
-            .await?;
+        let mut url = self.server.clone();
+        url.set_path(&format!("/ping/{}/start", uuid));
+        self.client.post(url).send().await?;
 
         Ok(())
     }
@@ -117,11 +116,9 @@ impl MonitoringTrait for HealthchecksService {
 
         let uuid = check.ping_url.split('/').last().unwrap();
 
-        self.client
-            .post(format!("{}/{}/{}", self.config.server, uuid, "start"))
-            .json(&job_stats)
-            .send()
-            .await?;
+        let mut url = self.server.clone();
+        url.set_path(&format!("/ping/{}/fail", uuid));
+        self.client.post(url).json(&job_stats).send().await?;
 
         Ok(())
     }
@@ -145,10 +142,11 @@ impl HealthchecksManagementApiTrait for HealthchecksService {
         tag_filter: Option<Vec<String>>,
         slug_filter: Option<String>,
     ) -> eyre::Result<HealthchecksListChecksResponse> {
-        let url = format!("{}/api/v2/checks", self.config.server);
+        let mut url = self.server.clone();
+        url.set_path("/api/v2/checks");
         let mut request = self
             .client
-            .get(&url)
+            .get(url)
             .headers(self.generate_auth_header().await?);
 
         if let Some(tag_filter) = tag_filter {
@@ -194,7 +192,8 @@ impl HealthchecksManagementApiTrait for HealthchecksService {
 
             debug!(name);
 
-            let create_url = format!("{}/api/v2/checks/", self.config.server);
+            let mut url = self.server.clone();
+            url.set_path(&format!("/api/v2/checks"));
 
             let request = HealthchecksCreateCheckRequest {
                 name: name.clone(),
@@ -208,7 +207,7 @@ impl HealthchecksManagementApiTrait for HealthchecksService {
 
             let response: HealthchecksCheckInfo = self
                 .client
-                .post(&create_url)
+                .post(url)
                 .headers(self.generate_auth_header().await?)
                 .json(&request)
                 .send()
