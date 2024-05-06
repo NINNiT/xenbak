@@ -25,8 +25,8 @@
 
 ## Features
 
-- multiple storage backends (local-storage, borg-storage, ...)
-- multiple alert handlers (mail, healthchecks.io, ...)
+- multiple storage backends (local-storage, borg-storage)
+- multiple alert handlers (mail, healthchecks.io)
 - uses the xapi CLI client (`xe`) to interact with local and remote XAPI hosts
 - docker images with bundled `xe` are available
 - filter VMs by tags (include/exclude)
@@ -39,7 +39,7 @@
 
 ## Dependencies
 
-Docker images come with a all dependencies included. Manual installation requires the following dependencies.
+Docker images come with all dependencies included. Manual installation requires the following dependencies.
 
 ### Required
 

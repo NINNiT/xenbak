@@ -9,8 +9,6 @@ use crate::storage::{
     StorageHandler,
 };
 
-// deserialize "none" string for Option<SomeEnum>, e.g. for Option<CompressionType>. make it work for any source, not just JSON
-//e.g. the toml line compression = "none"             # Compression type:  gzip, zstd or none
 pub fn deserialize_option_enum<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
     D: serde::Deserializer<'de>,

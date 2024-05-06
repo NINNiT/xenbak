@@ -4,4 +4,4 @@ strip = true
 
 [workspace]
 resolver = "2"
-members = ["apps/xenbakd", "apps/xenbak_cli"]
+members = ["apps/xenbakd"]

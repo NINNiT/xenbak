@@ -21,10 +21,12 @@ impl XenbakScheduler {
         global_state: Arc<GlobalState>,
     ) {
         let mut monitoring_services: Vec<Arc<dyn MonitoringTrait>> = vec![];
+
         if let Some(healthchecks_service) = global_state.healthchecks_service.clone() {
             monitoring_services
                 .push(Arc::new(healthchecks_service).clone() as Arc<dyn MonitoringTrait>);
         }
+
         if let Some(mail_service) = global_state.mail_service.clone() {
             monitoring_services.push(Arc::new(mail_service) as Arc<dyn MonitoringTrait>);
         }
@@ -35,6 +37,8 @@ impl XenbakScheduler {
 
         // run the job
         let job_result = job.run().await;
+
+        // get job stats after job execution is done
         let job_stats = job.get_job_stats();
 
         // send success/failure notification

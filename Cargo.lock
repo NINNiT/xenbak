@@ -2196,10 +2196,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "xenbak_cli"
-version = "0.1.0"
-
-[[package]]
 name = "xenbakd"
 version = "0.2.0"
 dependencies = [
