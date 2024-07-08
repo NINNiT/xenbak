@@ -124,8 +124,9 @@ impl XApiCliClient {
 
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
-            let uuids = UUIDs::from_cli_output(&stdout)?;
+
             let mut snapshots: Vec<VM> = vec![];
+            let uuids = UUIDs::from_cli_output(&stdout)?;
             for uuid in &uuids {
                 let snapshot = self.get_vm_by_uuid(&uuid).await?;
                 snapshots.push(snapshot);
