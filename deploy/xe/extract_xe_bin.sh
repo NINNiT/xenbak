@@ -5,7 +5,7 @@ set -e
 START_DIR=${PWD}
 
 mkdir -p /tmp/xapi-xe
-curl -Lo /tmp/xapi-xe/xe.rpm https://koji.xcp-ng.org/kojifiles/packages/xapi/23.31.0/1.6.0.xen417.0.xcpng8.3/x86_64/xapi-xe-23.31.0-1.6.0.xen417.0.xcpng8.3.x86_64.rpm
+curl -Lo /tmp/xapi-xe/xe.rpm https://koji.xcp-ng.org/kojifiles/packages/xapi/23.31.0/1.7.xcpng8.3/x86_64/xapi-xe-23.31.0-1.7.xcpng8.3.x86_64.rpm
 
 # extract rpm
 cd /tmp/xapi-xe || exit
