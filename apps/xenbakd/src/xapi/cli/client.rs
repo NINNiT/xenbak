@@ -65,7 +65,9 @@ impl XApiCliClient {
 
             if tagged_uuid_output.status.success() {
                 let stdout = String::from_utf8_lossy(&tagged_uuid_output.stdout);
-                tagged_uuids.extend(UUIDs::from_cli_output(&stdout)?);
+                if let Ok(uuids) = UUIDs::from_cli_output(&stdout) {
+                    tagged_uuids.extend(uuids);
+                }
             } else {
                 let stderr = String::from_utf8_lossy(&tagged_uuid_output.stderr);
                 return Err(XApiCliError::CommandFailed(stderr.into()));
@@ -89,7 +91,9 @@ impl XApiCliClient {
 
             if excluded_uuid_output.status.success() {
                 let stdout = String::from_utf8_lossy(&excluded_uuid_output.stdout);
-                excluded_uuids.extend(UUIDs::from_cli_output(&stdout)?);
+                if let Ok(uuids) = UUIDs::from_cli_output(&stdout) {
+                    tagged_uuids.extend(uuids);
+                }
             } else {
                 let stderr = String::from_utf8_lossy(&excluded_uuid_output.stderr);
                 return Err(XApiCliError::CommandFailed(stderr.into()));
