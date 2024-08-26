@@ -57,6 +57,8 @@ jobs:
           sudo apt-get install -yqq musl-tools
           rustup target add x86_64-unknown-linux-musl
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: musl-cache
       - name: Build
         run: cargo build --verbose --target x86_64-unknown-linux-musl
       - name: Upload Build Artifacts
@@ -75,6 +77,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
       - name: Install Dependencies
         run: |
           npm install -g semantic-release \
