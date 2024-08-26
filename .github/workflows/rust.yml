@@ -12,11 +12,6 @@ env:
   CARGO_TERM_COLOR: always
 
 install_musl: &install_musl
-  - name: Install MUSL toolchain
-    run: |
-      sudo apt-get install -yqq --no-install-recommends build-essential
-      sudo apt-get install -yqq musl-tools
-      rustup target add x86_64-unknown-linux-musl
 
 jobs:
   build-debug:
@@ -32,7 +27,11 @@ jobs:
         with:
           path: target
           key: ${{ runner.os }}-cargo-deps
-      - <<: *install_musl
+      - name: Install MUSL toolchain
+        run: |
+          sudo apt-get install -yqq --no-install-recommends build-essential
+          sudo apt-get install -yqq musl-tools
+          rustup target add x86_64-unknown-linux-musl
       - name: Build
         run: cargo build --verbose --target x86_64-unknown-linux-musl
       - name: Upload Build Artifacts
@@ -48,7 +47,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - <<: *install_musl
+      - name: Install MUSL toolchain
+        run: |
+          sudo apt-get install -yqq --no-install-recommends build-essential
+          sudo apt-get install -yqq musl-tools
+          rustup target add x86_64-unknown-linux-musl
       - name: Build Release Binary
         run: cargo build --release --verbose --target x86_64-unknown-linux-musl
       - name: Upload build artifacts
