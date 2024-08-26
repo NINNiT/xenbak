@@ -85,17 +85,22 @@ jobs:
       - name: Run tests
         run: cargo test --verbose --target x86_64-unknown-linux-musl
 
-  # semantic_release:
-  #   # This job runs on every push to 'main' branch after a successful build and test.
-  #   if: github.ref == 'refs/heads/ci'
-  #   runs-on: ubuntu-latest
-  #   needs: [build, test]
-  #
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Install Dependencies
-  #       run: npm install
-  #     - name: Run Semantic Release
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #       run: npx semantic-release
+  semantic_release:
+    # This job runs on every push to 'main' branch after a successful build and test.
+    if: github.ref == 'refs/heads/ci'
+    runs-on: ubuntu-latest
+    needs: [build, test]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Dependencies
+        run: |
+          npm install -g semantic-release \
+            conventional-changelog-conventionalcommits \
+            @semantic-release/commit-analyzer \
+            @semantic-release/git \
+            @semantic-release/github \
+            @semantic-release/exec \
+            @semantic-release/changelog
+      - name: Run Semantic Release
+        run: npx semantic-release
