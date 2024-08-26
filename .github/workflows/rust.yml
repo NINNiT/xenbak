@@ -5,9 +5,9 @@ permissions:
 
 on:
   push:
-    branches: ["ci", "main"]
+    branches: ["*"]
   pull_request:
-    branches: ["ci"]
+    branches: ["*"]
   release:
     types: [created]
 
@@ -100,7 +100,7 @@ jobs:
 
   semantic_release:
     # This job runs on every push to 'main' branch after a successful build and test.
-    if: github.ref == 'refs/heads/ci'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta'
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GH_TOKEN}}
