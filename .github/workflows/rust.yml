@@ -42,8 +42,14 @@ jobs:
         with:
           name: cargo-build-release
           path: target/x86_64-unknown-linux-musl/release/
+        # archive the binary and the config file
       - name: Create package archive
-        run: tar -czf xenbak-${{ github.event.release.tag_name}}.tar.gz -C target/x86_64-unknown-linux-musl/release/ xenbak
+        run: |
+          mkdir -p /tmp/xenbak
+          cp target/x86_64-unknown-linux-musl/release/xenbakd /tmp/xenbak/xenbakd
+          cp apps/xenbakd/config.toml /tmp/xenbak/config.toml
+          cp deploy/systemd/xenbakd.service
+          tar -czf xenbak-${{ github.event.release.tag_name}}.tar.gz /tmp/xenbak
       - name: Upload to current release
         run: gh release upload ${{ github.event.release.tag_name }} xenbak-${{ github.event.release.tag_name}}.tar.gz
 
@@ -54,6 +60,10 @@ jobs:
     needs: build-release
     steps:
       - uses: actions/checkout@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: cargo-build-release
       - name: Login to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
       - name: Fetch Docker Image
@@ -83,15 +93,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: musl-cache
-      # - name: Build
-      #   run: cargo build --verbose --target x86_64-unknown-linux-musl
       - name: Run tests
         run: cargo test --verbose --target x86_64-unknown-linux-musl
-      # - name: Upload Build Artifacts
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: cargo-build-debug
-      #     path: target/x86_64-unknown-linux-musl/debug/
 
   semantic_release:
     # This job runs on every push to 'main' branch after a successful build and test.
