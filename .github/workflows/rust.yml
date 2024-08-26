@@ -42,8 +42,10 @@ jobs:
         with:
           name: cargo-build-release
           path: target/x86_64-unknown-linux-musl/release/
+      - name: Create package archive
+        run: tar -czf xenbak-${{ github.event.release.tag_name}}.tar.gz -C target/x86_64-unknown-linux-musl/release/ xenbak
       - name: Upload to current release
-        run: gh release upload ${{ github.event.release.tag_name }} target/x86_64-unknown-linux-musl/release/*
+        run: gh release upload ${{ github.event.release.tag_name }} xenbak-${{ github.event.release.tag_name}}.tar.gz
 
   build-docker:
     if: github.event_name == 'release' && github.event.action == 'created'
