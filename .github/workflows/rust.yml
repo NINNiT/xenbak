@@ -15,7 +15,7 @@ jobs:
   build-release:
     if: github.event_name == 'release' && github.event.action == 'created'
     runs-on: ubuntu-latest
-    environment: default
+    # environment: default
     needs:
       - test
     env:
@@ -42,7 +42,7 @@ jobs:
   build-docker:
     if: github.event_name == 'release' && github.event.action == 'created'
     runs-on: ubuntu-latest
-    environment: default
+    # environment: default
     needs: build-release
     steps:
       - uses: actions/checkout@v4
@@ -52,7 +52,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    environment: default
+    # environment: default
 
     steps:
       - uses: actions/checkout@v4
@@ -79,8 +79,8 @@ jobs:
     if: github.ref == 'refs/heads/ci'
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ secrets.GH_TOKEN}}
-    environment: default
+      GITHUB_TOKEN: ${{ secrets.GH_TOKEN}}
+    # environment: default
     needs: [test]
 
     steps:
