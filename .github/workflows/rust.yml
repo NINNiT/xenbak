@@ -66,11 +66,11 @@ jobs:
         run: cargo build --verbose --target x86_64-unknown-linux-musl
       - name: Run tests
         run: cargo test --verbose --target x86_64-unknown-linux-musl
-      - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: cargo-build-debug
-          path: target/x86_64-unknown-linux-musl/debug/
+      # - name: Upload Build Artifacts
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: cargo-build-debug
+      #     path: target/x86_64-unknown-linux-musl/debug/
 
   semantic_release:
     # This job runs on every push to 'main' branch after a successful build and test.
