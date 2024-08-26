@@ -83,7 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GH_TOKEN}}
-    # environment: default
+    environment: default
     needs: [test]
 
     steps:
