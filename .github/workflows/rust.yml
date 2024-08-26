@@ -24,7 +24,10 @@ jobs:
           key: ${{ runner.os }}-cargo-deps
       - uses: actions/checkout@v4
       - name: Install MUSL toolchain
-        run: rustup target add x86_64-unknown-linux-musl
+        run: |
+          apt-get install -yqq --no-install-recommends build-essential
+          apt-get install -ygg musl-tools
+          rustup target add x86_64-unknown-linux-musl
       - name: Build
         run: cargo build --verbose --target x86_64-unknown-linux-musl
       - name: Run tests
