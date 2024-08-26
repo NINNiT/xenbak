@@ -51,7 +51,7 @@ jobs:
           cp deploy/systemd/xenbakd.service /tmp/xenbakd/xenbakd.service
           tar -czf xenbakd-${{ github.event.release.tag_name}}.tar.gz -C /tmp xenbakd
       - name: Upload to current release
-        run: gh release upload ${{ github.event.release.tag_name }} xenbak-${{ github.event.release.tag_name}}.tar.gz
+        run: gh release upload ${{ github.event.release.tag_name }} xenbakd-${{ github.event.release.tag_name}}.tar.gz
 
   build-docker:
     if: github.event_name == 'release' && github.event.action == 'created'
