@@ -48,7 +48,7 @@ jobs:
           mkdir -p /tmp/xenbak
           cp target/x86_64-unknown-linux-musl/release/xenbakd /tmp/xenbak/xenbakd
           cp apps/xenbakd/config.toml /tmp/xenbak/config.toml
-          cp deploy/systemd/xenbakd.service
+          cp deploy/systemd/xenbakd.service /tmp/xenbak/xenbakd.service
           tar -czf xenbak-${{ github.event.release.tag_name}}.tar.gz /tmp/xenbak
       - name: Upload to current release
         run: gh release upload ${{ github.event.release.tag_name }} xenbak-${{ github.event.release.tag_name}}.tar.gz
