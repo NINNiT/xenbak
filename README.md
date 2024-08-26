@@ -63,7 +63,7 @@ Build artifacts from XCP-NGs build-server are available [here](https://koji.xcp-
 1. Download the a release from the [releases page]() and extract the binary to a location in your PATH.
 
 ```bash
-tar -xvf xenbak-0.2.0-x86_64-unknown-linux-musl.tar.gz
+tar -xvf xenbakd-v1.2.0.tar.gz
 mv xenbak /usr/bin
 ```
 
