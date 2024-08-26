@@ -65,17 +65,17 @@ jobs:
         with:
           name: cargo-build-release
       - name: Login to Docker Hub
-        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+        run: echo "${{ secrets.GH_TOKEN }}" | docker login ghcr.io -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
       - name: Fetch Docker Image
         run: docker pull xenbak:latest
       - name: Build Docker Image and tag with version
-        run: docker build -t xenbak:${{ github.event.release.tag_name }} .
+        run: docker build -t ghcr.io/NINNiT/xenbak:${{ github.event.release.tag_name }} .
       - name: Push Docker Image
-        run: docker push xenbak:${{ github.event.release.tag_name }}
+        run: docker push ghcr.io/NINNiT/xenbak:${{ github.event.release.tag_name }}
       - name: Tag Docker Image with latest
         run: |
           if [[ "${{ github.event.release.prerelease }}" == "false" ]]; then
-            docker tag xenbak:${{ github.event.release.tag_name }} xenbak:latest
+            docker tag ghcr.io/NINNiT/xenbak:${{ github.event.release.tag_name }} ghcr.io/NINNiT/xenbak:latest
             docker push xenbak:latest
           fi
 
