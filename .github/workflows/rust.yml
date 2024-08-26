@@ -15,6 +15,7 @@ jobs:
   build-release:
     if: github.event_name == 'release' && github.event.action == 'created'
     runs-on: ubuntu-latest
+    environment: default
     needs:
       - test
     env:
@@ -41,6 +42,7 @@ jobs:
   build-docker:
     if: github.event_name == 'release' && github.event.action == 'created'
     runs-on: ubuntu-latest
+    environment: default
     needs: build-release
     steps:
       - uses: actions/checkout@v4
@@ -49,8 +51,8 @@ jobs:
           echo "yo"
 
   test:
-    # This job is separate and depends on the build job.
     runs-on: ubuntu-latest
+    environment: default
 
     steps:
       - uses: actions/checkout@v4
@@ -76,6 +78,7 @@ jobs:
     # This job runs on every push to 'main' branch after a successful build and test.
     if: github.ref == 'refs/heads/ci'
     runs-on: ubuntu-latest
+    environment: default
     needs: [test]
 
     steps:
