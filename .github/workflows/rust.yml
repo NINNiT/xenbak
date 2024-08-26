@@ -19,6 +19,8 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'created'
     runs-on: ubuntu-latest
     environment: default
+    needs:
+      - test
     env:
       RUSTFLAGS: -C link-arg=-s
       GH_TOKEN: ${{ secrets.GH_TOKEN}}
@@ -80,6 +82,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     environment: default
+    if: github.event_name != 'release'
 
     steps:
       - uses: actions/checkout@v4
