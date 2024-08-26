@@ -18,11 +18,12 @@ jobs:
   build-release:
     if: github.event_name == 'release' && github.event.action == 'created'
     runs-on: ubuntu-latest
-    # environment: default
+    environment: default
     needs:
       - test
     env:
       RUSTFLAGS: -C link-arg=-s
+      GH_TOKEN: ${{ secrets.GH_TOKEN}}
 
     steps:
       - uses: actions/checkout@v4
@@ -41,11 +42,13 @@ jobs:
         with:
           name: cargo-build-release
           path: target/x86_64-unknown-linux-musl/release/
+      - name: Upload to current release
+        run: gh release upload ${{ github.event.release.tag_name }} target/x86_64-unknown-linux-musl/release/*
 
   build-docker:
     if: github.event_name == 'release' && github.event.action == 'created'
     runs-on: ubuntu-latest
-    # environment: default
+    environment: default
     needs: build-release
     steps:
       - uses: actions/checkout@v4
@@ -55,7 +58,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    # environment: default
+    environment: default
 
     steps:
       - uses: actions/checkout@v4
@@ -82,7 +85,7 @@ jobs:
     if: github.ref == 'refs/heads/ci'
     runs-on: ubuntu-latest
     env:
-      GITHUB_TOKEN: ${{ secrets.GH_TOKEN}}
+      GH_TOKEN: ${{ secrets.GH_TOKEN}}
     environment: default
     needs: [test]
 
