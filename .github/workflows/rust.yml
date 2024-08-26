@@ -64,6 +64,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: cargo-build-release
+          path: target/x86_64-unknown-linux-musl/release/
       - name: Login to Docker Hub
         run: echo "${{ secrets.GH_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Fetch Docker Image
