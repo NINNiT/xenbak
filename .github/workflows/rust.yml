@@ -1,22 +1,135 @@
 name: Rust
 
+permissions:
+  contents: write
+
 on:
   push:
-    branches: [ "ci" ]
+    branches: ["*"]
   pull_request:
-    branches: [ "ci" ]
+    branches: ["*"]
+  release:
+    types: [created]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  build-release:
+    if: github.event_name == 'release' && github.event.action == 'created'
     runs-on: ubuntu-latest
+    environment: default
+    env:
+      RUSTFLAGS: -C link-arg=-s
+      GH_TOKEN: ${{ secrets.GH_TOKEN}}
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - uses: actions/checkout@v4
+      - name: Install MUSL toolchain
+        run: |
+          sudo apt-get install -yqq --no-install-recommends build-essential
+          sudo apt-get install -yqq musl-tools
+          rustup target add x86_64-unknown-linux-musl
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: musl-cache
+      - name: Build Release Binary
+        run: cargo build --release --verbose --target x86_64-unknown-linux-musl
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-build-release
+          path: target/x86_64-unknown-linux-musl/release/xenbakd
+      - name: Create package archive
+        run: |
+          mkdir -p /tmp/xenbakd
+          cp README.md /tmp/xenbakd/README.md
+          cp target/x86_64-unknown-linux-musl/release/xenbakd /tmp/xenbakd/xenbakd
+          cp apps/xenbakd/config.toml /tmp/xenbakd/config.toml
+          cp deploy/systemd/xenbakd.service /tmp/xenbakd/xenbakd.service
+          tar -czf xenbakd-${{ github.event.release.tag_name}}.tar.gz -C /tmp xenbakd
+      - name: Upload to current release
+        run: gh release upload ${{ github.event.release.tag_name }} xenbakd-${{ github.event.release.tag_name}}.tar.gz
+
+  build-docker:
+    if: github.event_name == 'release' && github.event.action == 'created'
+    runs-on: ubuntu-latest
+    environment: default
+    env:
+      GITHUB_TOKEN: ${{ secrets.GH_TOKEN}}
+    needs: build-release
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cargo-build-release
+          path: target/x86_64-unknown-linux-musl/release/xenbakd
+      - name: Login to Docker Hub
+        run: echo "${{ secrets.GH_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Fetch Docker Image
+        run: docker pull ghcr.io/ninnit/xenbak:latest || true
+      - name: Build Docker Image and tag with version
+        run: docker build -t ghcr.io/ninnit/xenbak:${{ github.event.release.tag_name }} -f deploy/docker/Dockerfile .
+      - name: Push Docker Image
+        run: docker push ghcr.io/ninnit/xenbak:${{ github.event.release.tag_name }}
+      - name: Tag Docker Image with latest
+        run: |
+          if [[ "${{ github.event.release.prerelease }}" == "false" ]]; then
+            docker tag ghcr.io/ninnit/xenbak:${{ github.event.release.tag_name }} ghcr.io/ninnit/xenbak:latest
+            docker push ghcr.io/ninnit/xenbak:latest
+          fi
+
+  test:
+    runs-on: ubuntu-latest
+    environment: default
+    if: github.event_name != 'release'
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MUSL toolchain
+        run: |
+          sudo apt-get install -yqq --no-install-recommends build-essential
+          sudo apt-get install -yqq musl-tools
+          rustup target add x86_64-unknown-linux-musl
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: musl-cache
+      - name: Run tests
+        run: cargo test --verbose --target x86_64-unknown-linux-musl
+
+  semantic_release:
+    # This job runs on every push to 'main' branch after a successful build and test.
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/beta'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GH_TOKEN}}
+    environment: default
+    needs: [test]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Cache node modules
+        id: cache-npm
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-npm-cache
+          restore-keys: |
+            ${{ runner.os }}-npm-cache
+      - name: Install Dependencies
+        run: |
+          npm install semantic-release \
+            conventional-changelog-conventionalcommits \
+            @semantic-release/commit-analyzer \
+            @semantic-release/git \
+            @semantic-release/github \
+            @semantic-release/exec \
+            @semantic-release/changelog
+      - name: Run Semantic Release
+        run: npx semantic-release
