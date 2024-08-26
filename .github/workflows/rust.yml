@@ -69,7 +69,7 @@ jobs:
       - name: Fetch Docker Image
         run: docker pull ghcr.io/ninnit/xenbak:latest || true
       - name: Build Docker Image and tag with version
-        run: docker build -t ghcr.io/ninnit/xenbak:${{ github.event.release.tag_name }} .
+        run: docker build -t ghcr.io/ninnit/xenbak:${{ github.event.release.tag_name }} -f deploy/docker/Dockerfile .
       - name: Push Docker Image
         run: docker push ghcr.io/ninnit/xenbak:${{ github.event.release.tag_name }}
       - name: Tag Docker Image with latest
