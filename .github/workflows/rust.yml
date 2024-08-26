@@ -67,16 +67,16 @@ jobs:
       - name: Login to Docker Hub
         run: echo "${{ secrets.GH_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Fetch Docker Image
-        run: docker pull ghcr.io/NINNiT/xenbak:latest
+        run: docker pull ghcr.io/ninnit/xenbak:latest
       - name: Build Docker Image and tag with version
-        run: docker build -t ghcr.io/NINNiT/xenbak:${{ github.event.release.tag_name }} .
+        run: docker build -t ghcr.io/ninnit/xenbak:${{ github.event.release.tag_name }} .
       - name: Push Docker Image
-        run: docker push ghcr.io/NINNiT/xenbak:${{ github.event.release.tag_name }}
+        run: docker push ghcr.io/ninnit/xenbak:${{ github.event.release.tag_name }}
       - name: Tag Docker Image with latest
         run: |
           if [[ "${{ github.event.release.prerelease }}" == "false" ]]; then
-            docker tag ghcr.io/NINNiT/xenbak:${{ github.event.release.tag_name }} ghcr.io/NINNiT/xenbak:latest
-            docker push xenbak:latest
+            docker tag ghcr.io/ninnit/xenbak:${{ github.event.release.tag_name }} ghcr.io/ninnit/xenbak:latest
+            docker push ghcr.io/ninnit/xenbak:latest
           fi
 
   test:
