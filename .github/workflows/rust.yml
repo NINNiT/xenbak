@@ -42,14 +42,14 @@ jobs:
         with:
           name: cargo-build-release
           path: target/x86_64-unknown-linux-musl/release/
-        # archive the binary and the config file
       - name: Create package archive
         run: |
-          mkdir -p /tmp/xenbak
-          cp target/x86_64-unknown-linux-musl/release/xenbakd /tmp/xenbak/xenbakd
-          cp apps/xenbakd/config.toml /tmp/xenbak/config.toml
-          cp deploy/systemd/xenbakd.service /tmp/xenbak/xenbakd.service
-          tar -czf xenbak-${{ github.event.release.tag_name}}.tar.gz /tmp/xenbak
+          mkdir -p /tmp/xenbakd
+          cp README.md /tmp/xenbakd/README.md
+          cp target/x86_64-unknown-linux-musl/release/xenbakd /tmp/xenbakd/xenbakd
+          cp apps/xenbakd/config.toml /tmp/xenbakd/config.toml
+          cp deploy/systemd/xenbakd.service /tmp/xenbakd/xenbakd.service
+          tar -czf xenbakd-${{ github.event.release.tag_name}}.tar.gz -C /tmp xenbakd
       - name: Upload to current release
         run: gh release upload ${{ github.event.release.tag_name }} xenbak-${{ github.event.release.tag_name}}.tar.gz
 
@@ -61,7 +61,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: cargo-build-release
       - name: Login to Docker Hub
