@@ -123,7 +123,7 @@ jobs:
             ${{ runner.os }}-npm-cache
       - name: Install Dependencies
         run: |
-          npm install -g semantic-release \
+          npm install semantic-release \
             conventional-changelog-conventionalcommits \
             @semantic-release/commit-analyzer \
             @semantic-release/git \
