@@ -78,6 +78,8 @@ jobs:
     # This job runs on every push to 'main' branch after a successful build and test.
     if: github.ref == 'refs/heads/ci'
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GH_TOKEN}}
     environment: default
     needs: [test]
 
