@@ -26,7 +26,7 @@ jobs:
       - name: Install MUSL toolchain
         run: |
           sudo apt-get install -yqq --no-install-recommends build-essential
-          sudo apt-get install -ygg musl-tools
+          sudo apt-get install -yqq musl-tools
           rustup target add x86_64-unknown-linux-musl
       - name: Build
         run: cargo build --verbose --target x86_64-unknown-linux-musl
