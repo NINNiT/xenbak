@@ -1,6 +1,6 @@
 {
   "branches": [
-    "main",
+    "ci",
     {
       "name": "beta",
       "prerelease": true
