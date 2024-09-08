@@ -24,17 +24,16 @@
 
 ## Features
 
-- multiple storage backends (local-storage, borg-storage)
-- multiple alert handlers (mail, healthchecks.io)
-- uses the xapi CLI client (`xe`) to interact with local and remote XAPI hosts
-- docker images with bundled `xe` are available
-- filter VMs by tags (include/exclude)
-- multiple compression algorithms for backups (zstd, gzip, borg algorithms, ...)
 - configuration using TOML
 - can run as a daemon or as a one-shot command
 - xen-hosts, storage-handlers and backup-jobs can be combined freely
 - 100% safe rust
 - MUSL builds available (self contained binary, can run directly on xen host with no system lib dependencies)
+- filter VMs by tags (include/exclude)
+- multiple storage backends (local-storage, borg-storage)
+- multiple compression algorithms for backups (zstd, gzip, borg algorithms, ...)
+- multiple alert handlers (mail, healthchecks.io)
+- uses the xapi CLI client (`xe`) to interact with local and remote XAPI hosts
 
 ## Dependencies
 
