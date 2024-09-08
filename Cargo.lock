@@ -130,9 +130,9 @@ dependencies = [
 
 [[package]]
 name = "async-tempfile"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c17d4a3286e6518d84be399efb8901aa74a183753b0bf4a8a4afe5bcfedcbb08"
+checksum = "acb90d9834a8015109afc79f1f548223a0614edcbab62fb35b62d4b707e975e7"
 dependencies = [
  "tokio",
  "uuid",
