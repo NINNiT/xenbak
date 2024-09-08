@@ -10,10 +10,10 @@
 <p align="center">
   <a href="#about">About</a> •
   <a href="#features">Features</a> •
-  <a href="#installation">Installation</a> •
   <a href="#usage">Usage</a> •
-  <a href="#contributing">Contributing</a> •
-  <a href="#license">License</a>
+  <a href="#installation">Installation</a> •
+  <a href="#building">Building</a>
+  <a href="#configuration">Configuration</a> •
 </p>
 
 ---
@@ -153,7 +153,7 @@ xenbakd --config /etc/xenbak/config.toml run --jobs job1,job2
 
 ## Building
 
-## Example Config
+## configuration
 
 ```toml
 [general]
