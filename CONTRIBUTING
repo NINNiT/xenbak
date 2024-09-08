@@ -1,0 +1,6 @@
+All contributions are welcome!
+
+*Please keep a few things in mind:*
+- Commits (and PRs) must follow the conventional commits format ()
+- Please make sure to update the README with details of changes to the interface, this includes new environment variables, exposed ports, useful file locations and container parameters.
+
