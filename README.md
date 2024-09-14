@@ -12,8 +12,8 @@
   <a href="#features">Features</a> •
   <a href="#usage">Usage</a> •
   <a href="#installation">Installation</a> •
-  <a href="#building">Building</a> •
-  <a href="#configuration">Configuration</a>
+  <a href="#building">Building</a>
+  <a href="#configuration">Configuration</a> •
 </p>
 
 ---

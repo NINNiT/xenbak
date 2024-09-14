@@ -9,6 +9,7 @@ FROM debian:bookworm as runtime
 LABEL org.opencontainers.image.source=https://github.com/ninnit/xenbak
 LABEL org.opencontainers.image.description="Backup tool for xen/xcp-ng hypervisors"
 
+COPY ./target/x86_64-unknown-linux-musl/release/xenbakd /usr/bin/xenbakd
 RUN apt-get update && apt-get install -y curl borgbackup stunnel ssh && apt-get clean
 
 COPY ./target/x86_64-unknown-linux-musl/release/xenbakd /usr/bin/xenbakd
