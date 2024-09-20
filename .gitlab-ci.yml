@@ -37,7 +37,7 @@ build:musl:
 
 .build-image:
   stage: build-image
-  image: docker:27.2
+  image: docker:27.3
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY --username $CI_REGISTRY_USER --password-stdin
 
