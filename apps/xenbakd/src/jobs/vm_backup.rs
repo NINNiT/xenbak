@@ -1,4 +1,4 @@
-use std::{sync::Arc};
+use std::sync::Arc;
 
 use eyre::Context;
 use tracing::{debug, error, info, warn};
@@ -111,6 +111,8 @@ impl XenbakJob for VmBackupJob {
             let handle = tokio::spawn(async move {
                 let _permit = permit;
 
+                let timer = tokio::time::Instant::now();
+
                 info!("Starting backup of VM '{}' [{}]", vm.name_label, vm.uuid);
 
                 // perform snapshot
@@ -173,7 +175,12 @@ impl XenbakJob for VmBackupJob {
                     vm.name_label, vm.uuid
                 ))?;
 
-                info!("Finished backup of VM '{}'", vm.name_label);
+                let elapsed = timer.elapsed().as_secs_f64();
+
+                info!(
+                    "Finished backup of VM '{}' [{}] in {} seconds",
+                    vm.name_label, vm.uuid, elapsed
+                );
 
                 // drop the permit to allow another task to run
                 drop(_permit);

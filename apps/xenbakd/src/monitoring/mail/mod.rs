@@ -70,7 +70,7 @@ impl MonitoringTrait for MailService {
         let job_stats = serde_json::to_string_pretty(&job_stats)?;
 
         let body = format!(
-            "Backup Job '{}' on host '{}' succeeded.\n\nStats: {:?}",
+            "Backup Job '{}' on host '{}' succeeded.\n\nStats: {}",
             job_name, hostname, job_stats
         );
 
@@ -94,7 +94,7 @@ impl MonitoringTrait for MailService {
     ) -> eyre::Result<()> {
         let job_stats = serde_json::to_string_pretty(&job_stats)?;
         let body = format!(
-            "Backup Job '{}' on host '{}' has failed\n\nStats: {:?}",
+            "Backup Job '{}' on host '{}' has failed\n\nStats: {}",
             job_name, hostname, job_stats
         );
 
