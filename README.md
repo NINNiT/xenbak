@@ -108,9 +108,9 @@ systemctl enable --now xenbakd
 
 ```bash
 # run as daemon
-docker run -d --name xenbakd -v /path/to/config.toml:/etc/config.toml -v path/to/storage:/mnt/storage ghcr.io/xenbak/xenbakd:0.2.0
+docker run -d --name xenbakd -v /path/to/config.toml:/etc/config.toml -v path/to/storage:/mnt/storage ghcr.io/ninnit/xenbakd:latest
 # run once / custom CMD
-docker run -d --name xenbakd -v /path/to/config.toml:/etc/config.toml -v path/to/storage:/mnt/storage ghcr.io/xenbak/xenbakd:0.2.0 xenbakd --config /etc/config.toml run --j job1,job2
+docker run -d --name xenbakd -v /path/to/config.toml:/etc/config.toml -v path/to/storage:/mnt/storage ghcr.io/ninnit/xenbakd:latest xenbakd --config /etc/config.toml run --j job1,job2
 ```
 
 ## Usage
@@ -188,7 +188,7 @@ smtp_to = ["asdf@test.test"]
 
 [monitoring.healthchecks]
 enabled = true
-api_key = "VkSpHYVtXfkQRuhojpeUrKAwBexF-oTq"
+api_key = "api_key"
 server = "http://192.168.100.164:8000"
 grace = 7200
 max_retry = 5
