@@ -5,8 +5,12 @@ use tracing::{debug, error, info, warn, Instrument};
 use crate::{
     config::JobConfig,
     jobs::XenbakJobStats,
-    storage::{self},
-    xapi::{cli::client::XApiCliClient, SnapshotType, VM},
+    storage,
+    xapi::{
+        cli::client::XApiCliClient,
+        error::{XApiCliError, XApiParseError},
+        SnapshotType, VM,
+    },
     GlobalState,
 };
 
@@ -141,13 +145,19 @@ impl XenbakJob for VmBackupJob {
                     let snapshot: VM = match job_config.use_existing_snapshot {
                         true => {
                             // get all existing snapshots for the given VM
-                            let mut existing_snapshots = xapi_client.get_snapshots(&vm).await?;
+                            let existing_snapshots = xapi_client.get_snapshots(&vm).await;
 
                             // no snapshots? damn. create a new one.
-                            if existing_snapshots.is_empty() {
+                            if existing_snapshots.as_ref().is_err_and(|e| {
+                                matches!(
+                                    e,
+                                    XApiCliError::XApiParseError(XApiParseError::EmptyOutput)
+                                )
+                            }) {
                                 debug!("No recent snapshot found, creating new one");
                                 xapi_client.snapshot(&vm, SnapshotType::Normal).await?
                             } else {
+                                let mut existing_snapshots = existing_snapshots?;
                                 // sort existing snapshots by snapshot time and get the most recent
                                 existing_snapshots.sort_by(|a, b| {
                                     a.snapshot_time

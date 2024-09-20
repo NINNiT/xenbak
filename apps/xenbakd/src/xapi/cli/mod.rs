@@ -1,15 +1,17 @@
+use crate::xapi::error::{XApiError, XApiParseError};
+
 use super::{error::XApiCliError, parse_timestamp, UUIDs, UUID, VM};
 use std::str::FromStr;
 
 pub mod client;
 
 pub trait FromCliOutput: Sized {
-    fn from_cli_output(output: &str) -> Result<Self, XApiCliError>;
+    fn from_cli_output(output: &str) -> Result<Self, XApiParseError>;
 }
 
 impl FromCliOutput for VM {
     /// create a new VM struct from `xe vm-param-list` stdout
-    fn from_cli_output(output: &str) -> Result<VM, XApiCliError> {
+    fn from_cli_output(output: &str) -> Result<VM, XApiParseError> {
         let output = output.trim();
         let mut vm = VM::default();
 
@@ -40,19 +42,31 @@ impl FromCliOutput for VM {
 }
 
 impl FromCliOutput for UUID {
-    fn from_cli_output(output: &str) -> Result<UUID, XApiCliError> {
+    fn from_cli_output(output: &str) -> Result<UUID, XApiParseError> {
         let output = output.replace("\n", "").trim().to_string();
+        let parts: Vec<&str> = output.split('-').collect();
+        if parts.len() != 5 {
+            return Err(XApiParseError::EmptyOutput);
+        }
         Ok(output)
     }
 }
 impl FromCliOutput for UUIDs {
-    fn from_cli_output(output: &str) -> Result<UUIDs, XApiCliError> {
+    fn from_cli_output(output: &str) -> Result<UUIDs, XApiParseError> {
         let output = output.replace("\n", "").trim().to_string();
 
         let uuids: Vec<UUID> = output
             .split(',')
             .map(|uuid| uuid.trim().to_string())
             .collect();
+
+        // perform sanity checks - we don't want invalid uuids
+        for uuid in uuids.clone() {
+            let parts: Vec<&str> = uuid.split('-').collect();
+            if parts.len() != 5 {
+                return Err(XApiParseError::EmptyOutput);
+            }
+        }
 
         Ok(uuids)
     }
