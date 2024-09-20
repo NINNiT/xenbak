@@ -12,4 +12,5 @@ COPY config.toml /etc/xenbakd/config.toml
 COPY --from=xe_bin_builder /app/xe /usr/bin/xe
 ENV CONFIG_FILE=/etc/xenbakd/config.toml
 
-CMD ["/usr/bin/xenbakd", "--config",  "${CONFIG_FILE}", "daemon"]
+ENTRYPOINT ["/usr/bin/xenbakd"]
+CMD ["--config", "/etc/xenbakd/config.toml", "daemon"]
