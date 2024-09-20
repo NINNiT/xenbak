@@ -1,0 +1,11 @@
+version: "3.7"
+
+services:
+  xenbakd:
+    image: xenbakd:latest
+    container_name: xenbakd
+    volumes:
+      - ./config.toml:/etc/xenbakd/config.toml
+      - ./temp/:/tmp/xenbakd/
+      - ./id_rsa:/etc/xenbakd/id_rsa
+    restart: always

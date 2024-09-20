@@ -1,5 +1,5 @@
 [general]
-log_level = "debug" # debug, info, trace, warn, error
+log_level = "info" # debug, info, trace, warn, error
 
 [monitoring.mail]
 enabled = true
@@ -37,9 +37,9 @@ retention = 3                                                           # Number
 enabled = true
 name = "borg"
 binary_path = "/usr/bin/borg"                                  # path to the borg binary
-temp_dir = "/root/temp"                                        # borg needs a temporary directory to store the backup before it is uploaded to the repository
+temp_dir = "/tmp/xenbakd"                                      # borg needs a temporary directory to store the backup before it is uploaded to the repository
 repository = "ssh://root@192.168.100.148:22/root/borgrepo"     # path to the borg repository (can be local or remote)
-ssh_key_path = "/root/.ssh/id_rsa"                             # (optional) path to the ssh key for remote borg repository, ignored on local
+ssh_key_path = "/etc/xenbakd/id_rsa"                           # (optional) path to the ssh key for remote borg repository, ignored on local
 encryption = "none"                                            # repokey-blake2, repokey, keyfile-blake2, keyfile, none
 compression = "zstd"
 retention = { daily = 2, weekly = 7, monthly = 4, yearly = 1 } # Number of backups to keep
@@ -50,6 +50,6 @@ name = "test"
 schedule = "0 */4 * * * *"
 tag_filter = ["backup"]          # Only backup VMs with the given tags
 tag_filter_exclude = ["exclude"] # Exclude VMs with the given tags
-concurrency = 1                  # Number of concurrent backups
+concurrency = 1                  # Number of concurrent backups ()
 storages = ["borg"]              # Storage to use for the backup
 xen_hosts = ["xen1"]             # Xen hosts to backup
