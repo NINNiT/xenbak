@@ -1,0 +1,11 @@
+[Unit]
+Description=xenbakd is a backup daemon for Xen / XCP-NG hosts
+After=network-online.target  
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/xenbakd --config /etc/xenbakd/config.toml
+Restart=always  
+
+[Install]
+WantedBy=multi-user.target

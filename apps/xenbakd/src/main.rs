@@ -5,6 +5,7 @@ __  _____ _ __ | |__   __ _| | ____| |
 /_/\_\___|_| |_|_.__/ \__,_|_|\_\__,_|
   "#;
 
+mod cli;
 mod config;
 mod jobs;
 mod monitoring;
@@ -18,6 +19,7 @@ use crate::{
     monitoring::healthchecks::HealthchecksManagementApiTrait,
     scheduler::XenbakScheduler,
 };
+use clap::Parser;
 use color_eyre::owo_colors::OwoColorize;
 use colored::Colorize;
 use figment::{
@@ -35,9 +37,13 @@ async fn main() -> eyre::Result<()> {
     // print banner
     println!("{}", BANNER.cyan());
 
+    // parse cli args
+    let cli = cli::XenbakdCli::parse();
+    let config_path = cli.config;
+
     // load default config, then override/merge using config.toml
     let mut config = Figment::from(Serialized::defaults(AppConfig::default()))
-        .merge(Toml::file("config.toml"))
+        .merge(Toml::file(config_path))
         .extract::<AppConfig>()
         .expect("Failed to load configuration");
 
