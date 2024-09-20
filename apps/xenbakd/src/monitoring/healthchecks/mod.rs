@@ -190,10 +190,10 @@ impl HealthchecksManagementApiTrait for HealthchecksService {
                 .collect::<Vec<&str>>()
                 .join(" ");
 
-            debug!(name);
-
             let mut url = self.server.clone();
             url.set_path(&format!("/api/v2/checks"));
+
+            dbg!(&url);
 
             let request = HealthchecksCreateCheckRequest {
                 name: name.clone(),
@@ -205,6 +205,8 @@ impl HealthchecksManagementApiTrait for HealthchecksService {
                 unique: vec!["name".into()],
             };
 
+            dbg!(&request);
+
             let response: HealthchecksCheckInfo = self
                 .client
                 .post(url)
@@ -214,6 +216,8 @@ impl HealthchecksManagementApiTrait for HealthchecksService {
                 .await?
                 .json()
                 .await?;
+
+            dbg!(&response);
 
             self.checks.insert(name.clone(), response);
         }
