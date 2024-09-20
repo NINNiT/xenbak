@@ -232,7 +232,7 @@ impl StorageHandler for LocalStorage {
         );
 
         let result = async {
-            // create file and write to it from stdout_stream
+            // create file and get file handle
             let mut file = tokio::fs::File::create(&full_path).await?;
 
             // create a buffered stream reader for smoother I/O
