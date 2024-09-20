@@ -112,6 +112,31 @@ impl XApiCliClient {
         Ok(vms)
     }
 
+    /// returns a list of the VMs snapshots
+    pub async fn get_snapshots(&self, vm: &VM) -> Result<Vec<VM>, XApiCliError> {
+        let output = self
+            .get_base_command()
+            .arg("vm-snapshot-list")
+            .arg("uuid=".to_owned() + &vm.uuid)
+            .arg("--minimal")
+            .output()
+            .await?;
+
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let uuids = UUIDs::from_cli_output(&stdout)?;
+            let mut snapshots: Vec<VM> = vec![];
+            for uuid in &uuids {
+                let snapshot = self.get_vm_by_uuid(&uuid).await?;
+                snapshots.push(snapshot);
+            }
+            Ok(snapshots)
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(XApiCliError::CommandFailed(stderr.into()));
+        }
+    }
+
     pub async fn snapshot(&self, vm: &VM, snapshot_type: SnapshotType) -> Result<VM, XApiCliError> {
         let mut command = self.get_base_command();
 

@@ -1,14 +1,23 @@
-
-
-
-
-use crate::{
-    config::{JobConfig},
-    jobs::JobType,
-};
+use crate::{config::JobConfig, jobs::JobType};
 
 pub mod borg;
 pub mod local;
+
+#[async_trait::async_trait]
+pub trait StorageHandler: Send + Sync {
+    fn get_storage_type(&self) -> StorageType;
+    fn get_job_config(&self) -> JobConfig;
+    async fn status(&self) -> eyre::Result<StorageStatus>;
+    async fn initialize(&self) -> eyre::Result<()>;
+    async fn list(&self, filter: BackupObjectFilter) -> eyre::Result<Vec<BackupObject>>;
+    async fn rotate(&self, filter: BackupObjectFilter) -> eyre::Result<()>;
+    async fn handle_stdio_stream(
+        &self,
+        backup_object: BackupObject,
+        stdout_stream: tokio::process::ChildStdout,
+        stderr_stream: tokio::process::ChildStderr,
+    ) -> eyre::Result<()>;
+}
 
 pub trait CompressionType: Sized {
     fn to_extension(&self) -> String;
@@ -80,21 +89,5 @@ impl BackupObject {
 #[derive(Debug, Clone)]
 pub enum StorageType {
     Local,
-    BorgLocal,
-}
-
-#[async_trait::async_trait]
-pub trait StorageHandler: Send + Sync {
-    fn get_storage_type(&self) -> StorageType;
-    fn get_job_config(&self) -> JobConfig;
-    async fn status(&self) -> eyre::Result<StorageStatus>;
-    async fn initialize(&self) -> eyre::Result<()>;
-    async fn list(&self, filter: BackupObjectFilter) -> eyre::Result<Vec<BackupObject>>;
-    async fn rotate(&self, filter: BackupObjectFilter) -> eyre::Result<()>;
-    async fn handle_stdio_stream(
-        &self,
-        backup_object: BackupObject,
-        stdout_stream: tokio::process::ChildStdout,
-        stderr_stream: tokio::process::ChildStderr,
-    ) -> eyre::Result<()>;
+    Borg,
 }

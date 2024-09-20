@@ -58,6 +58,7 @@ impl XenbakJob for VmBackupJob {
         );
         let _enter = span.enter();
         let job_timer = tokio::time::Instant::now();
+
         info!("Running VM backup job '{}'", self.job_config.name);
 
         self.job_stats.config = self.job_config.clone();
@@ -70,7 +71,7 @@ impl XenbakJob for VmBackupJob {
             .map(|x| XApiCliClient::new(x.clone()))
             .collect();
 
-        // filter VMs by tag and map them to their respective XAPI clients (= xen hosts)
+        // filter VMs by tag and map them to their respective XAPI clients (-> xen hosts)
         let mut vms: HashMap<XApiCliClient, Vec<VM>> = HashMap::new();
 
         for client in xapi_clients {
@@ -80,7 +81,6 @@ impl XenbakJob for VmBackupJob {
                     self.job_config.tag_filter_exclude.clone(),
                 )
                 .await?;
-
             vms.insert(client, filtered_vms);
         }
 
@@ -96,12 +96,12 @@ impl XenbakJob for VmBackupJob {
             warn!("No VMs found for backup job '{}'", self.job_config.name);
         }
 
-        // get all of the job's storage handlers
+        // get all of the job's storage handlers...
         let storage_handlers = self
             .job_config
             .get_storages(self.global_state.config.storage.clone());
 
-        // initialize all storage handlers (e.g. create directory, ...)
+        // ... and initialize them (create sub-directories, create borg repo, ...)
         for storage_handler in storage_handlers.clone() {
             debug!(
                 "Initializing storage handler '{}'",
@@ -110,7 +110,7 @@ impl XenbakJob for VmBackupJob {
             storage_handler.initialize().await?;
         }
 
-        // sempahore to limit concurrent tasks, use arc to share across threads
+        // sempahore to limit concurrent tasks, use arc to share across threads.
         let permits = Arc::new(tokio::sync::Semaphore::new(
             self.job_config.concurrency as usize,
         ));
@@ -118,7 +118,7 @@ impl XenbakJob for VmBackupJob {
         // this will store all thread/task handles
         let mut handles = vec![];
 
-        // iterate over the filtered VMs and perform backup for each
+        // iterate over  VMs and perform backup for each
         for (xapi_client, vms) in vms {
             for vm in vms {
                 let span = tracing::span!(
@@ -131,10 +131,11 @@ impl XenbakJob for VmBackupJob {
                 // get a permit from the semaphore
                 let permit = permits.clone().acquire_owned().await.unwrap();
 
-                // clone required data for the task, to move into the task
+                // we have to clone this data, as it will be moved into a potential separate thread
                 let storage_handlers = storage_handlers.clone();
                 let job_type = self.job_type.clone();
                 let xapi_client = xapi_client.clone();
+                let job_config = self.job_config.clone();
 
                 // the backup task itself - will be spawned into a separate thread/task
                 let handle = tokio::spawn(
@@ -143,9 +144,53 @@ impl XenbakJob for VmBackupJob {
                         let vm_timer = tokio::time::Instant::now();
                         info!("Starting backup of VM '{}' [{}]", vm.name_label, vm.uuid);
 
-                        // perform snapshot
-                        debug!("Creating snapshot...");
-                        let snapshot = xapi_client.snapshot(&vm, SnapshotType::Normal).await?;
+                        // check if xenbakd should try to create a backup from an already-existing
+                        // snapshot - otherwise create a temporary new one
+                        let mut is_xenbakd_snapshot = true;
+                        let snapshot: VM = match job_config.use_existing_snapshot {
+                            true => {
+                                // get all existing snapshots for the given VM
+                                let mut existing_snapshots = xapi_client.get_snapshots(&vm).await?;
+
+                                // no snapshots? damn. create a new one.
+                                if existing_snapshots.is_empty() {
+                                    debug!("No recent snapshot found, creating new one");
+                                    xapi_client.snapshot(&vm, SnapshotType::Normal).await?
+                                } else {
+                                    // sort existing snapshots by snapshot time and get the most recent
+                                    existing_snapshots.sort_by(|a, b| {
+                                        a.snapshot_time
+                                            .timestamp()
+                                            .partial_cmp(&b.snapshot_time.timestamp())
+                                            .unwrap()
+                                    });
+                                    let newest_snapshot = existing_snapshots.last().unwrap();
+
+                                    // calculate snapshot age
+                                    let now = chrono::Utc::now();
+                                    let age_limit =
+                                        job_config.use_existing_snapshot_age.unwrap_or(3600);
+                                    let snapshot_age = now - newest_snapshot.snapshot_time;
+
+                                    // check if the snapshot is within the default (or user_defined) age limit
+                                    if snapshot_age.num_seconds() < age_limit {
+                                        is_xenbakd_snapshot = false;
+                                        newest_snapshot.clone()
+                                    } else {
+                                        debug!(
+                                            "Newest existing snapshot is older than {} seconds",
+                                            age_limit
+                                        );
+                                        debug!("Creating new snapshot");
+                                        xapi_client.snapshot(&vm, SnapshotType::Normal).await?
+                                    }
+                                }
+                            }
+                            false => {
+                                debug!("Creating new snapshot");
+                                xapi_client.snapshot(&vm, SnapshotType::Normal).await?
+                            }
+                        };
 
                         let backup_result = async {
                             // set is-a-template to false
@@ -155,13 +200,15 @@ impl XenbakJob for VmBackupJob {
                                 .await?;
 
                             // set snapshot name to a more readable format
-                            snapshot = xapi_client
-                                .set_snapshot_name(
-                                    &snapshot,
-                                    format!("{}__{}", vm.name_label, snapshot.snapshot_time)
-                                        .as_str(),
-                                )
-                                .await?;
+                            if is_xenbakd_snapshot {
+                                snapshot = xapi_client
+                                    .set_snapshot_name(
+                                        &snapshot,
+                                        format!("{}__{}", vm.name_label, snapshot.snapshot_time)
+                                            .as_str(),
+                                    )
+                                    .await?;
+                            }
 
                             // iterate through enabled local storages, export snapshost for each storage and rotate/cleanup backups
                             for storage_handler in storage_handlers {
@@ -197,11 +244,12 @@ impl XenbakJob for VmBackupJob {
                         }
                         .await;
 
-                        // always delete the snapshot...
-                        debug!("Deleting snapshot...");
-                        xapi_client.delete_snapshot_by_uuid(&snapshot.uuid).await?;
+                        if is_xenbakd_snapshot {
+                            debug!("Deleting snapshot...");
+                            xapi_client.delete_snapshot_by_uuid(&snapshot.uuid).await?;
+                        }
 
-                        // ...but propagate any errors that occurred during backup
+                        // propagate any errors that occurred during backup
                         if let Err(e) = backup_result {
                             return Err(e.wrap_err(format!(
                                 "Backup of VM '{}' [{}] failed",
@@ -259,7 +307,7 @@ impl XenbakJob for VmBackupJob {
         let elapsed = job_timer.elapsed();
         self.job_stats.duration = elapsed.as_secs_f64();
 
-        // if there were any errors, return a generic error
+        // if there were any errors, return an error
         if self.job_stats.failed_objects > 0 {
             return Err(eyre::eyre!("Backup job failed.",));
         }

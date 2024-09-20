@@ -82,7 +82,7 @@ pub struct BorgLocalStorage {
 impl BorgLocalStorage {
     pub fn new(storage_config: BorgStorageConfig, job_config: JobConfig) -> Self {
         BorgLocalStorage {
-            storage_type: StorageType::BorgLocal,
+            storage_type: StorageType::Borg,
             job_config,
             storage_config,
         }

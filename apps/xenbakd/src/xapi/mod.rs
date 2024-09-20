@@ -14,7 +14,7 @@ pub fn parse_timestamp(timestamp: &str) -> Result<chrono::DateTime<chrono::Utc>,
 pub type UUID = String;
 pub type UUIDs = Vec<UUID>;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct VM {
     pub uuid: String,
     pub name_label: String,
