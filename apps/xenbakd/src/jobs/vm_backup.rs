@@ -163,7 +163,7 @@ impl XenbakJob for VmBackupJob {
                                     job_config.use_existing_snapshot_age.unwrap_or(3600);
                                 let snapshot_age = now - newest_snapshot.snapshot_time;
 
-                                // check if the snapshot is within the default (or user_defined) age limit
+                                // check if the snapshot is within age limit
                                 if snapshot_age.num_seconds() < age_limit {
                                     is_xenbakd_snapshot = false;
                                     newest_snapshot.clone()
