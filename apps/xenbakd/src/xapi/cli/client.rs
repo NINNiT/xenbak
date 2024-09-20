@@ -116,8 +116,8 @@ impl XApiCliClient {
     pub async fn get_snapshots(&self, vm: &VM) -> Result<Vec<VM>, XApiCliError> {
         let output = self
             .get_base_command()
-            .arg("vm-snapshot-list")
-            .arg("uuid=".to_owned() + &vm.uuid)
+            .arg("snapshot-list")
+            .arg("snapshot-of=".to_owned() + &vm.uuid)
             .arg("--minimal")
             .output()
             .await?;
