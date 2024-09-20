@@ -153,7 +153,25 @@ xenbakd --config /etc/xenbak/config.toml run --jobs job1,job2
 
 ## Building
 
-## configuration
+#### Install toolchain
+
+```bash
+rustup target add x86_64-unknown-linux-musl
+```
+
+#### Build the MUSL binary
+
+```bash
+ RUSTFLAGS='-C link-arg=-s' cargo build --release --target x86_64-unknown-linux-musl
+```
+
+#### Docker Image (needs above step)
+
+```bash
+docker build -t xenbakd:dev --file deploy/docker/Dockerfile .
+```
+
+## Configuration
 
 ```toml
 [general]
