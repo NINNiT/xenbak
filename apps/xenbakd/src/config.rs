@@ -46,7 +46,7 @@ pub struct LocalStorageConfig {
     pub path: String,
     #[serde(deserialize_with = "deserialize_option_enum")]
     pub compression: Option<LocalCompressionType>,
-    pub retention: LocalStorageRetention,
+    pub retention: u32,
 }
 
 impl Default for LocalStorageConfig {
