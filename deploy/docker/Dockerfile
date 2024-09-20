@@ -10,7 +10,6 @@ RUN apt-get update && apt-get install -y curl borgbackup stunnel ssh && apt-get 
 RUN mkdir -p /etc/xenbakd
 COPY config.toml /etc/xenbakd/config.toml
 COPY --from=xe_bin_builder /app/xe /usr/bin/xe
-ENV CONFIG_FILE=/etc/xenbakd/config.toml
 
 ENTRYPOINT ["/usr/bin/xenbakd"]
 CMD ["--config", "/etc/xenbakd/config.toml", "daemon"]
