@@ -4,7 +4,7 @@
   <img 
     src="banner.jpg" 
     alt="Project Logo" 
-    width="80%" 
+    width="100%" 
 </p>
 
 <p align="center">
