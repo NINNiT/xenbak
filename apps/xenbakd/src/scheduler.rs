@@ -51,7 +51,7 @@ impl XenbakScheduler {
                             service.start(job.get_name()).await.unwrap();
                         }
 
-                        // run the joby
+                        // run the job
                         let job_result = job.run().await;
                         let job_stats = job.get_job_stats();
 

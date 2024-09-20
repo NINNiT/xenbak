@@ -267,20 +267,37 @@ impl StorageHandler for LocalStorage {
             // create file and write to it from stdout_stream
             let mut file = tokio::fs::File::create(&full_path).await?;
 
+            // set buffer size
+            const BUFFER_SIZE: usize = 1024 * 1024 * 10;
+            let mut stdout_buffered =
+                tokio::io::BufReader::with_capacity(BUFFER_SIZE, stdout_stream);
+            let mut stderr_buffered = tokio::io::BufReader::new(stderr_stream);
+
             match self.storage_config.compression {
                 Some(LocalCompressionType::Zstd) => {
                     let mut zstd = async_compression::tokio::write::ZstdEncoder::new(file);
-                    tokio::io::copy(&mut stdout_stream, &mut zstd).await?;
+                    tokio::io::copy(&mut stdout_buffered, &mut zstd).await?;
                 }
                 Some(LocalCompressionType::Gzip) => {}
                 None => {
-                    tokio::io::copy(&mut stdout_stream, &mut file).await?;
+                    tokio::io::copy(&mut stdout_buffered, &mut file).await?;
                 }
             }
 
+            // match self.storage_config.compression {
+            //     Some(LocalCompressionType::Zstd) => {
+            //         let mut zstd = async_compression::tokio::write::ZstdEncoder::new(file);
+            //         tokio::io::copy(&mut stdout_stream, &mut zstd).await?;
+            //     }
+            //     Some(LocalCompressionType::Gzip) => {}
+            //     None => {
+            //         tokio::io::copy(&mut stdout_stream, &mut file).await?;
+            //     }
+            // }
+
             // check stderr for errors
             let mut stderr = Vec::new();
-            stderr_stream.read_to_end(&mut stderr).await?;
+            stderr_buffered.read_to_end(&mut stderr).await?;
             if !stderr.is_empty() {
                 let stderr = String::from_utf8_lossy(&stderr);
                 return Err(eyre::eyre!(
