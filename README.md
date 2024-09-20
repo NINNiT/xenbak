@@ -12,22 +12,22 @@
   <a href="#features">Features</a> •
   <a href="#usage">Usage</a> •
   <a href="#installation">Installation</a> •
-  <a href="#building">Building</a>
-  <a href="#configuration">Configuration</a> •
+  <a href="#building">Building</a> •
+  <a href="#configuration">Configuration</a>
 </p>
 
 ---
 
 ## About
 
-`xenbak` is a backup utility for Xenserver/XCP-Ng hypervisors written in rust.
+`xenbak` is a backup utility for XCP-Ng hypervisors written in rust.
 
 ## Features
 
 - configuration using TOML
 - can run as a daemon or as a one-shot command
-- xen-hosts, storage-handlers and backup-jobs can be combined freely
-- 100% safe rust
+- xcp-ng hosts, storage-handlers and backup-jobs can be combined freely
+- 100% memory-safe rust
 - MUSL builds available (self contained binary, can run directly on xen host with no system lib dependencies)
 - filter VMs by tags (include/exclude)
 - multiple storage backends (local-storage, borg-storage)
@@ -41,8 +41,8 @@ Docker images come with all dependencies included. Manual installation requires 
 
 ### Required
 
-- `xe` (XAPI CLI client, pre-installed on Xenserver/XCP-NG hosts)
-  - `stunnel` (for remote hosts, pre-installed on Xenserver/XCP-NG hosts)
+- `xe` (XAPI CLI client, pre-installed on XCP-NG hosts)
+- `stunnel` (for remote hosts, pre-installed on XCP-NG hosts)
 
 ### Optional
 
