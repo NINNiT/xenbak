@@ -29,8 +29,8 @@ port = 443
 enabled = true
 name = "local"
 path = "/mnt/storage/local"
-compression = "zstd"        # gzip, zstd or none 
-retention = 3               # Number of backups to keep
+compression = "zstd"                                           # gzip, zstd or none 
+retention = { daily = 2, weekly = 7, monthly = 4, yearly = 1 } # Number of backups to keep
 
 # storage handler for local borg repositories (e.g. NFS, CIFS, local filesystem)
 [[storage.borg]]
