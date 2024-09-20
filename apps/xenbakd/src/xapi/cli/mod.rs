@@ -1,23 +1,19 @@
+use super::{
+    error::{XApiCliError, XApiParseError},
+    parse_timestamp, UUIDs, UUID, VM,
+};
 use std::str::FromStr;
 
-use crate::error::XApiCliError;
+pub mod client;
 
-use super::{parse_timestamp, FromCliOutput};
-
-#[derive(Debug, Default)]
-pub struct VM {
-    pub uuid: String,
-    pub name_label: String,
-    pub name_description: String,
-    pub is_a_template: bool,
-    pub is_default_template: bool,
-    pub is_a_snapshot: bool,
-    pub snapshot_time: chrono::DateTime<chrono::Utc>,
+pub trait FromCliOutput: Sized {
+    fn from_cli_output(output: &str) -> Result<Self, XApiCliError>;
 }
 
 impl FromCliOutput for VM {
     /// create a new VM struct from `xe vm-param-list` stdout
     fn from_cli_output(output: &str) -> Result<VM, XApiCliError> {
+        let output = output.trim();
         let mut vm = VM::default();
 
         for line in output.lines() {
@@ -43,5 +39,24 @@ impl FromCliOutput for VM {
         }
 
         Ok(vm)
+    }
+}
+
+impl FromCliOutput for UUID {
+    fn from_cli_output(output: &str) -> Result<UUID, XApiCliError> {
+        let output = output.replace("\n", "").trim().to_string();
+        Ok(output)
+    }
+}
+impl FromCliOutput for UUIDs {
+    fn from_cli_output(output: &str) -> Result<UUIDs, XApiCliError> {
+        let output = output.replace("\n", "").trim().to_string();
+
+        let uuids: Vec<UUID> = output
+            .split(',')
+            .map(|uuid| uuid.trim().to_string())
+            .collect();
+
+        Ok(uuids)
     }
 }

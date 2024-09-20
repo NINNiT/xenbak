@@ -4,7 +4,7 @@ log_level = "debug" # debug, info, trace, warn, error
 [[storage.local]]
 enabled = true
 name = "local_nfs"
-path = "/mnt/backup/"
+path = "/var/run/sr-mount/a69d1361-c718-d46e-63fd-49cde4db1fca/exports"
 
 [monitoring.mail]
 enabled = true
@@ -22,12 +22,11 @@ timeout = 5
 [[jobs]]
 enabled = true
 name = "test"
-schedule = "0 */1 * * * *"
-storages = ["local_nfs"]
-tag_filter = ["backup"]          # Only backup VMs with the given tags
+schedule = "0 */2 * * * *"
+tag_filter = ["test"]            # Only backup VMs with the given tags
 tag_filter_exclude = ["exclude"] # Exclude VMs with the given tags
 timeout = 3600                   # Timeout for the backup job in seconds
-concurrency = 2                  # Number of concurrent backups
-retention = 7                    # Retention period in days
-compression = "none"             # Compression type: none, gzip, zstd
+concurrency = 1                  # Number of concurrent backups
+retention = 3                    # Retention period in days
+compression = "gzip"             # Compression type:  gzip, zstd or none
 limit_bandwidth = 0              # Limit the bandwidth in MiB/s (0 = no limit)
