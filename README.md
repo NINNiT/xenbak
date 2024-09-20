@@ -242,4 +242,4 @@ use_existing_snapshot_age = 3600 # Define the maximum age of an existing snapsho
 
 ## Shoutout
 
-This project was supported by (Trafficon – Traffic Consultants GmbH)[https://www.trafficon.eu/].
+This project was supported by [Trafficon – Traffic Consultants GmbH](https://www.trafficon.eu/).
