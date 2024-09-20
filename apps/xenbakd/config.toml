@@ -30,7 +30,7 @@ enabled = true
 name = "local"
 path = "/mnt/storage/local"
 compression = "zstd"                                           # gzip, zstd or none 
-retention = { daily = 2, weekly = 7, monthly = 4, yearly = 1 } # Number of backups to keep
+retention = { daily = 7, weekly = 1, monthly = 1, yearly = 1 } # Number of backups to keep
 
 # storage handler for local borg repositories (e.g. NFS, CIFS, local filesystem)
 [[storage.borg]]
@@ -42,7 +42,7 @@ repository = "/mnt/storage/borgrepo" # path to the borg repository (can be local
 #ssh_key_path = ""                           # (optional) path to the ssh key for remote borg repository, ignored on local
 encryption = "none"                                            # repokey-blake2, repokey, keyfile-blake2, keyfile, none
 compression = "zstd"
-retention = { daily = 2, weekly = 7, monthly = 4, yearly = 1 } # Number of backups to keep
+retention = { daily = 7, weekly = 1, monthly = 1, yearly = 1 } # Number of backups to keep
 
 [[jobs]]
 enabled = true

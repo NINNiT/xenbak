@@ -56,7 +56,12 @@ impl Default for LocalStorageConfig {
             name: String::default(),
             path: String::default(),
             compression: None,
-            retention: 7,
+            retention: LocalStorageRetention {
+                daily: 7,
+                weekly: 1,
+                monthly: 1,
+                yearly: 1,
+            },
         }
     }
 }
@@ -89,7 +94,7 @@ impl Default for BorgStorageConfig {
             retention: BorgStorageRetention {
                 daily: 7,
                 weekly: 1,
-                monthly: 4,
+                monthly: 1,
                 yearly: 1,
             },
             temp_dir: "/tmp/xenbakd".into(),
