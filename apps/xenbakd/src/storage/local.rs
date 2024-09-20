@@ -216,6 +216,15 @@ impl StorageHandler for LocalStorage {
 
         Ok(backup_objects)
     }
+
+    // #[derive(Debug, Clone, Deserialize, Serialize)]
+    // pub struct LocalStorageRetention {
+    //     pub daily: u32,
+    //     pub weekly: u32,
+    //     pub monthly: u32,
+    //     pub yearly: u32,
+    // }
+
     async fn rotate(&self, filter: BackupObjectFilter) -> eyre::Result<()> {
         let backup_objects = self.list(filter).await?;
 
@@ -237,51 +246,40 @@ impl StorageHandler for LocalStorage {
             }
         }
 
-        let retention = self.storage_config.retention.clone();
+        // keep daily, weekly, monthly, yearly backups based on retention
+        for (_key, mut backup_objects) in vm_job_type_map {
+            backup_objects.sort_by(|a, b| b.time_stamp.cmp(&a.time_stamp));
 
-        for (key, mut backup_objects) in vm_job_type_map {
-            backup_objects.sort_by(|a, b| a.time_stamp.cmp(&b.time_stamp));
+            if backup_objects.len() > self.storage_config.retention as usize {
+                let to_delete = &backup_objects[self.storage_config.retention as usize..];
 
-            let mut daily: u32 = 0;
-            let mut weekly: u32 = 0;
-            let mut monthly: u32 = 0;
-            let mut yearly: u32 = 0;
-
-            let mut to_remove = vec![];
-
-            for backup_object in backup_objects {
-                let today = chrono::Utc::now();
-                let duration = today - backup_object.time_stamp;
-
-                if duration.num_days() <= 1 {
-                    daily += 1;
-                    if daily > retention.daily {
-                        to_remove.push(backup_object);
-                    }
-                } else if duration.num_days() <= 7 {
-                    weekly += 1;
-                    if weekly > retention.weekly {
-                        to_remove.push(backup_object);
-                    }
-                } else if duration.num_days() <= 30 {
-                    monthly += 1;
-                    if monthly > retention.monthly {
-                        to_remove.push(backup_object);
-                    }
-                } else if duration.num_days() <= 365 {
-                    yearly += 1;
-                    if yearly > retention.yearly {
-                        to_remove.push(backup_object);
-                    }
+                for backup_object in to_delete {
+                    let full_path = format!(
+                        "{}/{}",
+                        self.path,
+                        self.backup_object_to_file_name(backup_object.clone()),
+                    );
+                    tokio::fs::remove_file(full_path).await?;
                 }
             }
-
-            for backup_object in to_remove {
-                let file_name = self.backup_object_to_file_name(backup_object);
-                let full_path = format!("{}/{}", self.path, file_name);
-                tokio::fs::remove_file(full_path).await?;
-            }
         }
+
+        // for (_key, mut backup_objects) in vm_job_type_map {
+        //     backup_objects.sort_by(|a, b| b.time_stamp.cmp(&a.time_stamp));
+        //
+        //     if backup_objects.len() > self.storage_config.retention as usize {
+        //         let to_delete = &backup_objects[self.storage_config.retention as usize..];
+        //
+        //         for backup_object in to_delete {
+        //             let full_path = format!(
+        //                 "{}/{}",
+        //                 self.path,
+        //                 self.backup_object_to_file_name(backup_object.clone()),
+        //             );
+        //             tokio::fs::remove_file(full_path).await?;
+        //         }
+        //     }
+        // }
 
         Ok(())
     }
