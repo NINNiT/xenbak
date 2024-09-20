@@ -49,14 +49,6 @@ impl XenbakJob for VmBackupJob {
 
     /// runs a full vm backup job
     async fn run(&mut self) -> eyre::Result<()> {
-        // just some tracing and time measurement stuff
-        let span = tracing::span!(
-            tracing::Level::INFO,
-            "VmBackupJob::run",
-            job_name = self.job_config.name.clone(),
-            concurrency = self.job_config.concurrency
-        );
-        let _enter = span.enter();
         let job_timer = tokio::time::Instant::now();
 
         info!("Running VM backup job '{}'", self.job_config.name);
@@ -138,140 +130,137 @@ impl XenbakJob for VmBackupJob {
                 let job_config = self.job_config.clone();
 
                 // the backup task itself - will be spawned into a separate thread/task
-                let handle = tokio::spawn(
-                    async move {
-                        let _permit = permit;
-                        let vm_timer = tokio::time::Instant::now();
-                        info!("Starting backup of VM '{}' [{}]", vm.name_label, vm.uuid);
+                let handle = tokio::spawn(async move {
+                    let _permit = permit;
+                    let vm_timer = tokio::time::Instant::now();
+                    info!("Starting backup of VM '{}' [{}]", vm.name_label, vm.uuid);
 
-                        // check if xenbakd should try to create a backup from an already-existing
-                        // snapshot - otherwise create a temporary new one
-                        let mut is_xenbakd_snapshot = true;
-                        let snapshot: VM = match job_config.use_existing_snapshot {
-                            true => {
-                                // get all existing snapshots for the given VM
-                                let mut existing_snapshots = xapi_client.get_snapshots(&vm).await?;
+                    // check if xenbakd should try to create a backup from an already-existing
+                    // snapshot - otherwise create a temporary new one
+                    let mut is_xenbakd_snapshot = true;
+                    let snapshot: VM = match job_config.use_existing_snapshot {
+                        true => {
+                            // get all existing snapshots for the given VM
+                            let mut existing_snapshots = xapi_client.get_snapshots(&vm).await?;
 
-                                // no snapshots? damn. create a new one.
-                                if existing_snapshots.is_empty() {
-                                    debug!("No recent snapshot found, creating new one");
-                                    xapi_client.snapshot(&vm, SnapshotType::Normal).await?
+                            // no snapshots? damn. create a new one.
+                            if existing_snapshots.is_empty() {
+                                debug!("No recent snapshot found, creating new one");
+                                xapi_client.snapshot(&vm, SnapshotType::Normal).await?
+                            } else {
+                                // sort existing snapshots by snapshot time and get the most recent
+                                existing_snapshots.sort_by(|a, b| {
+                                    a.snapshot_time
+                                        .timestamp()
+                                        .partial_cmp(&b.snapshot_time.timestamp())
+                                        .unwrap()
+                                });
+                                let newest_snapshot = existing_snapshots.last().unwrap();
+
+                                // calculate snapshot age
+                                let now = chrono::Utc::now();
+                                let age_limit =
+                                    job_config.use_existing_snapshot_age.unwrap_or(3600);
+                                let snapshot_age = now - newest_snapshot.snapshot_time;
+
+                                // check if the snapshot is within the default (or user_defined) age limit
+                                if snapshot_age.num_seconds() < age_limit {
+                                    is_xenbakd_snapshot = false;
+                                    newest_snapshot.clone()
                                 } else {
-                                    // sort existing snapshots by snapshot time and get the most recent
-                                    existing_snapshots.sort_by(|a, b| {
-                                        a.snapshot_time
-                                            .timestamp()
-                                            .partial_cmp(&b.snapshot_time.timestamp())
-                                            .unwrap()
-                                    });
-                                    let newest_snapshot = existing_snapshots.last().unwrap();
-
-                                    // calculate snapshot age
-                                    let now = chrono::Utc::now();
-                                    let age_limit =
-                                        job_config.use_existing_snapshot_age.unwrap_or(3600);
-                                    let snapshot_age = now - newest_snapshot.snapshot_time;
-
-                                    // check if the snapshot is within the default (or user_defined) age limit
-                                    if snapshot_age.num_seconds() < age_limit {
-                                        is_xenbakd_snapshot = false;
-                                        newest_snapshot.clone()
-                                    } else {
-                                        debug!(
-                                            "Newest existing snapshot is older than {} seconds",
-                                            age_limit
-                                        );
-                                        debug!("Creating new snapshot");
-                                        xapi_client.snapshot(&vm, SnapshotType::Normal).await?
-                                    }
+                                    debug!(
+                                        "Newest existing snapshot is older than {} seconds",
+                                        age_limit
+                                    );
+                                    debug!("Creating new snapshot");
+                                    xapi_client.snapshot(&vm, SnapshotType::Normal).await?
                                 }
                             }
-                            false => {
-                                debug!("Creating new snapshot");
-                                xapi_client.snapshot(&vm, SnapshotType::Normal).await?
-                            }
-                        };
+                        }
+                        false => {
+                            debug!("Creating new snapshot");
+                            xapi_client.snapshot(&vm, SnapshotType::Normal).await?
+                        }
+                    };
 
-                        let backup_result = async {
-                            // set is-a-template to false
-                            debug!("Setting is-a-template to false...");
-                            let mut snapshot = xapi_client
-                                .set_snapshot_param_not_template(&snapshot)
+                    let backup_result = async {
+                        // set is-a-template to false
+                        debug!("Setting is-a-template to false...");
+                        let mut snapshot = xapi_client
+                            .set_snapshot_param_not_template(&snapshot)
+                            .await?;
+
+                        // set snapshot name to a more readable format
+                        if is_xenbakd_snapshot {
+                            snapshot = xapi_client
+                                .set_snapshot_name(
+                                    &snapshot,
+                                    format!("{}__{}", vm.name_label, snapshot.snapshot_time)
+                                        .as_str(),
+                                )
+                                .await?;
+                        }
+
+                        // iterate through enabled local storages, export snapshost for each storage and rotate/cleanup backups
+                        for storage_handler in storage_handlers {
+                            // create the backup object
+                            let backup_object = storage::BackupObject::new(
+                                job_type.clone(),
+                                vm.name_label.clone(),
+                                xapi_client.get_config().name.clone(),
+                                snapshot.snapshot_time,
+                                None,
+                            );
+
+                            // export the snaphhot using the current storage handler
+                            info!("Exporting VM to storage handler...",);
+                            xapi_client
+                                .vm_export_to_storage(
+                                    &snapshot,
+                                    storage_handler.clone(),
+                                    backup_object.clone(),
+                                )
                                 .await?;
 
-                            // set snapshot name to a more readable format
-                            if is_xenbakd_snapshot {
-                                snapshot = xapi_client
-                                    .set_snapshot_name(
-                                        &snapshot,
-                                        format!("{}__{}", vm.name_label, snapshot.snapshot_time)
-                                            .as_str(),
-                                    )
-                                    .await?;
-                            }
-
-                            // iterate through enabled local storages, export snapshost for each storage and rotate/cleanup backups
-                            for storage_handler in storage_handlers {
-                                // create the backup object
-                                let backup_object = storage::BackupObject::new(
-                                    job_type.clone(),
-                                    vm.name_label.clone(),
-                                    xapi_client.get_config().name.clone(),
-                                    snapshot.snapshot_time,
-                                    None,
+                            // rotate backups
+                            debug!("Rotating backups");
+                            let backup_object_filter =
+                                storage::BackupObjectFilter::from_backup_object(
+                                    backup_object.clone(),
                                 );
-
-                                // export the snaphhot using the current storage handler
-                                info!("Exporting VM to storage handler...",);
-                                xapi_client
-                                    .vm_export_to_storage(
-                                        &snapshot,
-                                        storage_handler.clone(),
-                                        backup_object.clone(),
-                                    )
-                                    .await?;
-
-                                // rotate backups
-                                debug!("Rotating backups");
-                                let backup_object_filter =
-                                    storage::BackupObjectFilter::from_backup_object(
-                                        backup_object.clone(),
-                                    );
-                                storage_handler.rotate(backup_object_filter).await?;
-                            }
-
-                            Ok::<(), eyre::Error>(())
-                        }
-                        .await;
-
-                        if is_xenbakd_snapshot {
-                            debug!("Deleting snapshot...");
-                            xapi_client.delete_snapshot_by_uuid(&snapshot.uuid).await?;
+                            storage_handler.rotate(backup_object_filter).await?;
                         }
 
-                        // propagate any errors that occurred during backup
-                        if let Err(e) = backup_result {
-                            return Err(e.wrap_err(format!(
-                                "Backup of VM '{}' [{}] failed",
-                                vm.name_label, vm.uuid
-                            )));
-                        }
-
-                        // get the elapsed time and log it
-                        let elapsed = vm_timer.elapsed().as_secs_f64();
-                        info!(
-                            "Finished backup of VM '{}' [{}] in {} seconds",
-                            vm.name_label, vm.uuid, elapsed
-                        );
-
-                        // drop the permit to allow another task to run
-                        drop(_permit);
-
-                        eyre::Result::<()>::Ok(())
+                        Ok::<(), eyre::Error>(())
                     }
-                    .instrument(span),
-                );
+                    .await;
 
+                    if is_xenbakd_snapshot {
+                        debug!("Deleting snapshot...");
+                        xapi_client.delete_snapshot_by_uuid(&snapshot.uuid).await?;
+                    }
+
+                    // propagate any errors that occurred during backup
+                    if let Err(e) = backup_result {
+                        return Err(e.wrap_err(format!(
+                            "Backup of VM '{}' [{}] failed",
+                            vm.name_label, vm.uuid
+                        )));
+                    }
+
+                    // get the elapsed time and log it
+                    let elapsed = vm_timer.elapsed().as_secs_f64();
+                    info!(
+                        "Finished backup of VM '{}' [{}] in {} seconds",
+                        vm.name_label, vm.uuid, elapsed
+                    );
+
+                    // drop the permit to allow another task to run
+                    drop(_permit);
+
+                    eyre::Result::<()>::Ok(())
+                })
+                .instrument(span);
                 // push the task handle into the handles vector to await it later
                 handles.push(handle);
             }
