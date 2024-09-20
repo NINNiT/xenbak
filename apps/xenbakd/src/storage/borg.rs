@@ -140,6 +140,7 @@ impl BorgLocalStorage {
     pub fn borg_base_cmd(&self) -> AsyncCommand {
         let mut cmd = AsyncCommand::new("borg");
         cmd.env("BORG_REPO", self.storage_config.repository.clone());
+        cmd.env("BORG_UNKNOWN_UNENCRYPTED_REPO_ACCESS_IS_OK", "yes");
         if let Some(rsh) = self.get_rsh_env() {
             cmd.env("BORG_RSH", rsh);
         }
