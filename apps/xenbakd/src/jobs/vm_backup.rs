@@ -1,11 +1,14 @@
-use std::sync::Arc;
+use std::{error::Error, sync::Arc};
 
-use tracing::{debug, info};
+use eyre::Context;
+use tracing::{debug, error, info, warn};
 
 use crate::{
-    config::{AppConfig, JobConfig},
+    config::JobConfig,
+    jobs::XenbakJobStats,
     storage::{self, StorageHandler},
     xapi::{cli::client::XApiCliClient, SnapshotType},
+    GlobalState,
 };
 
 use super::{JobType, XenbakJob};
@@ -13,81 +16,114 @@ use super::{JobType, XenbakJob};
 #[derive(Clone, Debug)]
 pub struct VmBackupJob {
     pub job_type: JobType,
-    pub app_config: AppConfig,
     pub job_config: JobConfig,
+    pub job_stats: XenbakJobStats,
+    pub global_state: Arc<GlobalState>,
 }
 
 #[async_trait::async_trait]
 impl XenbakJob for VmBackupJob {
-    fn new(app_config: AppConfig, job_config: JobConfig) -> VmBackupJob {
+    fn new(global_state: Arc<GlobalState>, job_config: JobConfig) -> VmBackupJob {
         VmBackupJob {
             job_type: JobType::VmBackup,
-            app_config,
+            global_state,
             job_config,
+            job_stats: XenbakJobStats::default(),
         }
+    }
+
+    fn get_name(&self) -> String {
+        self.job_config.name.clone()
+    }
+
+    fn get_job_type(&self) -> JobType {
+        self.job_type.clone()
     }
 
     fn get_schedule(&self) -> String {
         self.job_config.schedule.clone()
     }
 
-    /// runs a full vm backup job
-    async fn run(&self) -> eyre::Result<()> {
-        // let span = tracing::info_span!("job", job_name = %self.job_config.name);
-        // let _guard = span.enter();
+    fn get_job_stats(&self) -> XenbakJobStats {
+        self.job_stats.clone()
+    }
 
-        info!("Running VM backup job with name: {}", self.job_config.name);
-        // get filtered VM UUIDs
+    /// runs a full vm backup job
+    async fn run(&mut self) -> eyre::Result<()> {
+        let timer = tokio::time::Instant::now();
+        info!("Running VM backup job '{}'", self.job_config.name);
+
+        self.job_stats.job_name = self.job_config.name.clone();
+        self.job_stats.job_type = self.job_type.clone();
+        self.job_stats.hostname = self.global_state.config.general.hostname.clone();
+        self.job_stats.schedule = self.job_config.schedule.clone();
+
+        // filter VMs by tag and tag_exclude
         let vms = XApiCliClient::filter_vms_by_tag(
             self.job_config.tag_filter.clone(),
             self.job_config.tag_filter_exclude.clone(),
         )
         .await?;
+        debug!("{} objects affected by backup job", vms.len());
+        self.job_stats.total_objects = vms.len() as u32;
 
-        debug!("Found {} VMs to backup", vms.len());
+        // if no VMs are found, return early
+        if vms.is_empty() {
+            warn!("No VMs found for backup job '{}'", self.job_config.name);
+        }
 
+        // create local storage instances from config
         let local_storages = self
-            .app_config
+            .global_state
+            .config
             .storage
             .local
             .iter()
-            .map(|config| storage::local::LocalStorage::new(config.clone()))
+            .map(|config| {
+                storage::local::LocalStorage::new(config.clone(), self.job_config.clone())
+            })
             .collect::<Vec<storage::local::LocalStorage>>();
 
-        // sempahore to limit concurrency
+        // initialize all local storages (creating missing dirs, etc.)
+        for ls in local_storages.iter() {
+            ls.initialize().await?;
+        }
+
+        // sempahore to limit concurrency, use arc to share across threads
         let permits = Arc::new(tokio::sync::Semaphore::new(
             self.job_config.concurrency as usize,
         ));
 
-        // stores all thread/task handles
+        // this will store all thread/task handles
         let mut handles = vec![];
 
-        // iterate over VM UUIDs and perform backup for each
+        // iterate over previously filtered VMs and perform backup for each
         for vm in vms {
             // get a permit from the semaphore
             let permit = permits.clone().acquire_owned().await.unwrap();
 
-            // clone the local storages and other required data for the task
+            // clone required data for the task, to move into the task
             let local_storages = local_storages.clone();
             let job_type = self.job_type.clone();
             let job_config = self.job_config.clone();
 
+            // the backup task itself
             let handle = tokio::spawn(async move {
                 let _permit = permit;
 
-                tracing::info!("Backing up VM {} [{}]", vm.name_label, vm.uuid);
+                info!("Starting backup of VM '{}' [{}]", vm.name_label, vm.uuid);
 
+                // perform snapshot
+                debug!("Creating snapshot...");
                 let snapshot = XApiCliClient::snapshot(&vm, SnapshotType::Normal).await?;
-                dbg!(&snapshot);
 
                 let backup_result = async {
-                    // create snapshot for the VM and set is-a-template to false
-                    info!("Creating snapshot...");
+                    // set is-a-template to false
                     debug!("Setting is-a-template to false...");
                     let mut snapshot =
                         XApiCliClient::set_snapshot_param_not_template(&snapshot).await?;
-                    dbg!(&snapshot);
 
+                    // create backup object
                     let backup_object = storage::BackupObject::new(
                         job_type.clone(),
                         vm.name_label.clone(),
@@ -95,16 +131,16 @@ impl XenbakJob for VmBackupJob {
                         job_config.compression.clone(),
                     );
 
+                    // set snapshot name to backup object name
                     snapshot = XApiCliClient::set_snapshot_name(
                         &snapshot,
                         backup_object.generate_name_without_extension().as_ref(),
                     )
                     .await?;
 
-                    dbg!(&snapshot);
-
+                    // iterate through enabled local storages, export VM for each and rotate backups
                     for ls in local_storages {
-                        let full_path = ls.generate_full_path(backup_object.clone());
+                        let full_path = ls.generate_full_file_path(backup_object.clone());
 
                         // exporting vm to file
                         debug!("Exporting VM to file: {}", full_path);
@@ -115,7 +151,8 @@ impl XenbakJob for VmBackupJob {
                         )
                         .await?;
 
-                        debug!("Rotating backups in {}", ls.config.path);
+                        // perform backup rotation on all files where filter matches
+                        debug!("Rotating backups in {}", ls.storage_config.path);
                         let backup_object_filter =
                             storage::BackupObjectFilter::from_backup_object(backup_object.clone());
                         ls.rotate(backup_object_filter, job_config.retention)
@@ -126,15 +163,19 @@ impl XenbakJob for VmBackupJob {
                 }
                 .await;
 
-                // always delete the snapshot
+                // always delete the snapshot...
                 debug!("Deleting snapshot...");
                 XApiCliClient::delete_snapshot_by_uuid(&snapshot.uuid).await?;
 
-                backup_result?;
+                // ...but propagate any errors that occurred during backup
+                backup_result.wrap_err(format!(
+                    "Failed to backup VM {} [{}]",
+                    vm.name_label, vm.uuid
+                ))?;
 
-                info!("Finished backing up VM {}", vm.name_label);
+                info!("Finished backup of VM '{}'", vm.name_label);
 
-                // drop the permit to release it back to the semaphore
+                // drop the permit to allow another task to run
                 drop(_permit);
 
                 Ok::<(), eyre::Error>(())
@@ -143,12 +184,36 @@ impl XenbakJob for VmBackupJob {
             handles.push(handle);
         }
 
+        // wait for all async/threaded tasks to finish, save the results
+        let mut results = vec![];
         for handle in handles {
-            handle.await??;
+            results.push(handle.await);
         }
 
-        info!("Finished VM backup job with name: {}", self.job_config.name);
+        // check if there are any errors in the results
+        for result in results.iter() {
+            if let Err(e) = result {
+                error!("Error during backup job: {:?}", e);
 
-        Ok(())
+                self.job_stats.failed_objects += 1;
+                self.job_stats.errors.push(e.to_string());
+            } else {
+                self.job_stats.successful_objects += 1;
+            }
+        }
+
+        let elapsed = timer.elapsed();
+        self.job_stats.duration = elapsed.as_secs_f64();
+
+        info!(
+            "Finished VM backup job with name '{}' in {} seconds",
+            self.job_config.name, self.job_stats.duration
+        );
+
+        if results.iter().any(|r| r.is_err()) {
+            Err(eyre::eyre!("Backup job failed"))
+        } else {
+            Ok(())
+        }
     }
 }

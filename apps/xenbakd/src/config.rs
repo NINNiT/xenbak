@@ -23,12 +23,14 @@ where
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GeneralConfig {
     pub log_level: String,
+    pub hostname: String,
 }
 
 impl Default for GeneralConfig {
     fn default() -> GeneralConfig {
         GeneralConfig {
             log_level: "info".into(),
+            hostname: "localhost".into(),
         }
     }
 }
@@ -64,7 +66,28 @@ impl Default for StorageConfig {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct MailMonitoringConfig {
+pub struct HealthchecksConfig {
+    pub enabled: bool,
+    pub api_key: String,
+    pub server: String,
+    pub grace: u64,
+    pub max_retries: u32,
+}
+
+impl Default for HealthchecksConfig {
+    fn default() -> HealthchecksConfig {
+        HealthchecksConfig {
+            enabled: false,
+            api_key: String::default(),
+            server: "https://hc-ping.com".into(),
+            grace: 7200,
+            max_retries: 3,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct MailConfig {
     pub enabled: bool,
     pub smtp_server: String,
     pub smtp_port: u16,
@@ -74,9 +97,9 @@ pub struct MailMonitoringConfig {
     pub smtp_to: Vec<String>,
 }
 
-impl Default for MailMonitoringConfig {
-    fn default() -> MailMonitoringConfig {
-        MailMonitoringConfig {
+impl Default for MailConfig {
+    fn default() -> MailConfig {
+        MailConfig {
             enabled: false,
             smtp_server: String::default(),
             smtp_port: 587,
@@ -90,13 +113,15 @@ impl Default for MailMonitoringConfig {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct MonitoringConfig {
-    pub mail: MailMonitoringConfig,
+    pub mail: MailConfig,
+    pub healthchecks: HealthchecksConfig,
 }
 
 impl Default for MonitoringConfig {
     fn default() -> MonitoringConfig {
         MonitoringConfig {
-            mail: MailMonitoringConfig::default(),
+            mail: MailConfig::default(),
+            healthchecks: HealthchecksConfig::default(),
         }
     }
 }
@@ -108,12 +133,10 @@ pub struct JobConfig {
     pub schedule: String,
     pub tag_filter: Vec<String>,
     pub tag_filter_exclude: Vec<String>,
-    pub timeout: u64,
     pub concurrency: u32,
     pub retention: u32,
     #[serde(deserialize_with = "deserialize_option_enum")]
     pub compression: Option<CompressionType>,
-    pub limit_bandwidth: u32,
 }
 
 impl Default for JobConfig {
@@ -124,11 +147,9 @@ impl Default for JobConfig {
             schedule: "0 0 * * *".into(),
             tag_filter: vec![String::default()],
             tag_filter_exclude: vec![String::default()],
-            timeout: 3600,
             concurrency: 1,
             retention: 7,
             compression: None,
-            limit_bandwidth: 0,
         }
     }
 }
