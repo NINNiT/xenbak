@@ -32,11 +32,18 @@ impl HealthchecksService {
     pub fn from_config(config: HealthchecksConfig) -> Self {
         let retry_policy = ExponentialBackoff::builder().build_with_max_retries(config.max_retries);
 
+        let client = reqwest_middleware::ClientBuilder::new(
+            reqwest::ClientBuilder::new()
+                .user_agent(format!("xenbakd/{}", env!("CARGO_PKG_VERSION")))
+                .build()
+                .unwrap(),
+        )
+        .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+        .build();
+
         HealthchecksService {
             config,
-            client: reqwest_middleware::ClientBuilder::new(reqwest::Client::new())
-                .with(RetryTransientMiddleware::new_with_policy(retry_policy))
-                .build(),
+            client,
             checks: HashMap::new(),
         }
     }
@@ -56,27 +63,19 @@ impl HealthchecksService {
         Ok(headers)
     }
 
-    async fn generate_slug(&self, job_name: String, hostname: String) -> String {
-        format!("{}_{}", job_name, hostname)
+    async fn generate_slug(&self, job_name: String) -> String {
+        format!("{}", job_name)
     }
 }
 
 #[async_trait::async_trait]
 impl MonitoringTrait for HealthchecksService {
-    async fn success(
-        &self,
-        hostname: String,
-        job_name: String,
-        job_stats: XenbakJobStats,
-    ) -> eyre::Result<()> {
-        debug!(
-            "Sending success notification for job '{}' on host '{}'",
-            job_name, hostname
-        );
+    async fn success(&self, job_name: String, job_stats: XenbakJobStats) -> eyre::Result<()> {
+        debug!("Sending success notification for job '{}'", job_name);
 
         let check = self
             .checks
-            .get(&self.generate_slug(job_name, hostname).await)
+            .get(&self.generate_slug(job_name).await)
             .context("Check not found")?;
 
         self.client
@@ -88,15 +87,12 @@ impl MonitoringTrait for HealthchecksService {
         Ok(())
     }
 
-    async fn start(&self, hostname: String, job_name: String) -> eyre::Result<()> {
-        debug!(
-            "Sending start notification for job '{}' on host '{}'",
-            job_name, hostname
-        );
+    async fn start(&self, job_name: String) -> eyre::Result<()> {
+        debug!("Sending start notification for job '{}' ", job_name);
 
         let check = self
             .checks
-            .get(&self.generate_slug(job_name, hostname).await)
+            .get(&self.generate_slug(job_name).await)
             .context("Check not found")?;
 
         self.client
@@ -107,20 +103,12 @@ impl MonitoringTrait for HealthchecksService {
         Ok(())
     }
 
-    async fn failure(
-        &self,
-        hostname: String,
-        job_name: String,
-        job_stats: XenbakJobStats,
-    ) -> eyre::Result<()> {
-        debug!(
-            "Sending failure notification for job '{}' on host '{}'",
-            job_name, hostname
-        );
+    async fn failure(&self, job_name: String, job_stats: XenbakJobStats) -> eyre::Result<()> {
+        debug!("Sending failure notification for job '{}'", job_name);
 
         let check = self
             .checks
-            .get(&self.generate_slug(job_name, hostname).await)
+            .get(&self.generate_slug(job_name).await)
             .context("Check not found")?;
 
         self.client
@@ -140,7 +128,7 @@ pub trait HealthchecksManagementApiTrait {
         tag_filter: Option<Vec<String>>,
         slug_filter: Option<String>,
     ) -> eyre::Result<HealthchecksListChecksResponse>;
-    async fn initialize(&mut self, jobs: Vec<JobConfig>, hostname: String) -> eyre::Result<()>;
+    async fn initialize(&mut self, jobs: Vec<JobConfig>) -> eyre::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -184,11 +172,11 @@ impl HealthchecksManagementApiTrait for HealthchecksService {
     /// creates or updates healthchecks.io checks for each job
     /// - if a check already exists, it will be updated
     /// - if a check does not exist, it will be created
-    async fn initialize(&mut self, jobs: Vec<JobConfig>, hostname: String) -> eyre::Result<()> {
+    async fn initialize(&mut self, jobs: Vec<JobConfig>) -> eyre::Result<()> {
         // iterate over configured jobs, update or create checks
         for job in jobs {
-            let tags = vec![hostname.as_ref()].join(" ");
-            let name = self.generate_slug(job.name.clone(), hostname.clone()).await;
+            let tags = vec![""].join(" ");
+            let name = self.generate_slug(job.name.clone()).await;
             let slug = name.clone();
             let grace = self.config.grace;
             let schedule = job

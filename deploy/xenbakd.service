@@ -4,7 +4,7 @@ After=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/xenbakd --config /etc/xenbakd/config.toml
+ExecStart=/bin/bash -c '/usr/bin/xenbakd --config /etc/xenbakd/config.toml > /var/log/xenbakd/xenbakd.log'
 Restart=always  
 
 [Install]

@@ -55,29 +55,24 @@ impl MailService {
 
 #[async_trait::async_trait]
 impl MonitoringTrait for MailService {
-    async fn start(&self, _hostname: String, _job_name: String) -> eyre::Result<()> {
+    async fn start(&self, _job_name: String) -> eyre::Result<()> {
         // mail service, do nothing!
         Ok(())
     }
     // Method to send an email
-    async fn success(
-        &self,
-        job_name: String,
-        hostname: String,
-        job_stats: XenbakJobStats,
-    ) -> eyre::Result<()> {
+    async fn success(&self, job_name: String, job_stats: XenbakJobStats) -> eyre::Result<()> {
         // pretty print the job_stats object
         let job_stats = serde_json::to_string_pretty(&job_stats)?;
 
         let body = format!(
-            "Backup Job '{}' on host '{}' succeeded.\n\nStats: {}",
-            job_name, hostname, job_stats
+            "Backup Job '{}' succeeded.\n\nStats: {}",
+            job_name, job_stats
         );
 
         let email = lettre::Message::builder()
             .from(self.from.parse()?)
             .to(self.to.parse()?)
-            .subject(format!("Success: Backup Job '{}' on host '{}'", job_name, hostname).as_str())
+            .subject(format!("Success: Backup Job '{}'", job_name).as_str())
             .body(body)?;
 
         match self.mailer.send(email).await {
@@ -86,22 +81,14 @@ impl MonitoringTrait for MailService {
         }
     }
 
-    async fn failure(
-        &self,
-        job_name: String,
-        hostname: String,
-        job_stats: XenbakJobStats,
-    ) -> eyre::Result<()> {
+    async fn failure(&self, job_name: String, job_stats: XenbakJobStats) -> eyre::Result<()> {
         let job_stats = serde_json::to_string_pretty(&job_stats)?;
-        let body = format!(
-            "Backup Job '{}' on host '{}' has failed\n\nStats: {}",
-            job_name, hostname, job_stats
-        );
+        let body = format!("Backup Job '{}' failed\n\nStats: {}", job_name, job_stats);
 
         let email = lettre::Message::builder()
             .from(self.from.parse()?)
             .to(self.to.parse()?)
-            .subject(format!("Failure: Backup Job '{}' on host '{}'", job_name, hostname).as_str())
+            .subject(format!("Failure: Backup Job '{}'", job_name).as_str())
             .body(body)?;
 
         match self.mailer.send(email).await {

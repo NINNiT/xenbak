@@ -20,7 +20,6 @@ use crate::{
     scheduler::XenbakScheduler,
 };
 use clap::Parser;
-use color_eyre::owo_colors::OwoColorize;
 use colored::Colorize;
 use figment::{
     providers::{Format, Serialized, Toml},
@@ -73,10 +72,7 @@ async fn main() -> eyre::Result<()> {
                     config.monitoring.healthchecks.clone(),
                 );
 
-                match service
-                    .initialize(config.jobs.clone(), config.general.hostname.clone())
-                    .await
-                {
+                match service.initialize(config.jobs.clone()).await {
                     Ok(_) => Some(service),
                     Err(e) => {
                         tracing::warn!("Failed to initialize healthchecks service: {}", e);

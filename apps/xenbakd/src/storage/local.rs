@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::os::unix::{ffi::OsStringExt};
+use tokio::io::AsyncReadExt;
 
 use crate::config::{JobConfig, LocalStorageConfig};
 
@@ -39,11 +39,11 @@ impl StorageHandler for LocalStorage {
         todo!()
     }
 
-    fn job_config(&self) -> JobConfig {
+    fn get_job_config(&self) -> JobConfig {
         self.job_config.clone()
     }
 
-    fn storage_type(&self) -> StorageType {
+    fn get_storage_type(&self) -> StorageType {
         self.storage_type.clone()
     }
 
@@ -83,10 +83,6 @@ impl StorageHandler for LocalStorage {
                     }
                 }
 
-                // time_stamp: Option<(
-                //      Option<chrono::DateTime<chrono::Utc>>,
-                //      Option<chrono::DateTime<chrono::Utc>>,
-                //  )>,
                 if let Some(time_stamp) = filter.time_stamp.clone() {
                     if let Some(start) = time_stamp.0 {
                         if let Some(end) = time_stamp.1 {
@@ -126,7 +122,7 @@ impl StorageHandler for LocalStorage {
         Ok(backup_objects)
     }
 
-    async fn rotate(&self, filter: BackupObjectFilter, retention: u32) -> eyre::Result<()> {
+    async fn rotate(&self, filter: BackupObjectFilter) -> eyre::Result<()> {
         let backup_objects = self.list(filter).await?;
 
         let mut vm_job_type_map: std::collections::HashMap<String, Vec<BackupObject>> =
@@ -149,14 +145,62 @@ impl StorageHandler for LocalStorage {
         for (_key, mut backup_objects) in vm_job_type_map {
             backup_objects.sort_by(|a, b| b.time_stamp.cmp(&a.time_stamp));
 
-            if backup_objects.len() > retention as usize {
-                let to_delete = &backup_objects[retention as usize..];
+            if backup_objects.len() > self.storage_config.retention as usize {
+                let to_delete = &backup_objects[self.storage_config.retention as usize..];
 
                 for backup_object in to_delete {
                     let full_path = self.generate_full_file_path(backup_object.clone());
                     tokio::fs::remove_file(full_path).await?;
                 }
             }
+        }
+
+        Ok(())
+    }
+    //     async fn handle_stdio_stream<T>(
+    //         &self,
+    //         backup_object: BackupObject,
+    //         stdout_stream: T,
+    //         stderr_stream: T,
+    //     ) -> eyre::Result<()>
+    //     where
+    //         T: AsyncRead + Unpin + Send;
+    // }
+    //
+
+    // write stdout_stream to file, perform cleanup on error
+    async fn handle_stdio_stream(
+        &self,
+        backup_object: BackupObject,
+        mut stdout_stream: tokio::process::ChildStdout,
+        mut stderr_stream: tokio::process::ChildStderr,
+    ) -> eyre::Result<()> {
+        // get full path for the file and create a handle
+        let full_path = self.generate_full_file_path(backup_object.clone());
+
+        let result = async {
+            // create file and write to it from stdout_stream
+            let mut file = tokio::fs::File::create(&full_path).await?;
+            tokio::io::copy(&mut stdout_stream, &mut file).await?;
+
+            // check stderr for errors
+            let mut stderr = Vec::new();
+            stderr_stream.read_to_end(&mut stderr).await?;
+            if !stderr.is_empty() {
+                let stderr = String::from_utf8_lossy(&stderr);
+                return Err(eyre::eyre!(
+                    "Error encountered in stderr output: {}",
+                    stderr
+                ));
+            }
+
+            Ok::<(), eyre::Error>(())
+        }
+        .await;
+
+        if let Err(e) = result {
+            tokio::fs::remove_file(full_path).await?;
+            return Err(e.wrap_err("Failed to write to file"));
         }
 
         Ok(())

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use eyre::Context;
 use tracing::{debug, error, info, warn};
@@ -7,7 +7,7 @@ use crate::{
     config::JobConfig,
     jobs::XenbakJobStats,
     storage::{self, StorageHandler},
-    xapi::{cli::client::XApiCliClient, SnapshotType},
+    xapi::{cli::client::XApiCliClient, SnapshotType, VM},
     GlobalState,
 };
 
@@ -53,40 +53,49 @@ impl XenbakJob for VmBackupJob {
         let timer = tokio::time::Instant::now();
         info!("Running VM backup job '{}'", self.job_config.name);
 
-        self.job_stats.job_name = self.job_config.name.clone();
-        self.job_stats.job_type = self.job_type.clone();
-        self.job_stats.hostname = self.global_state.config.general.hostname.clone();
-        self.job_stats.schedule = self.job_config.schedule.clone();
+        self.job_stats.config = self.job_config.clone();
 
-        // filter VMs by tag and tag_exclude
-        let vms = XApiCliClient::filter_vms_by_tag(
-            self.job_config.tag_filter.clone(),
-            self.job_config.tag_filter_exclude.clone(),
-        )
-        .await?;
-        debug!("{} objects affected by backup job", vms.len());
-        self.job_stats.total_objects = vms.len() as u32;
+        let xapi_clients: Vec<XApiCliClient> = self
+            .job_config
+            .get_xen_configs(self.global_state.config.xen.clone())
+            .iter()
+            .map(|x| XApiCliClient::new(x.clone()))
+            .collect();
+
+        let mut vms: HashMap<XApiCliClient, Vec<VM>> = HashMap::new();
+
+        for client in xapi_clients {
+            let filtered_vms = client
+                .filter_vms_by_tag(
+                    self.job_config.tag_filter.clone(),
+                    self.job_config.tag_filter_exclude.clone(),
+                )
+                .await?;
+
+            vms.insert(client, filtered_vms);
+        }
+
+        self.job_stats.total_objects = vms.values().flatten().count() as u32;
+        debug!(
+            "{} objects affected by backup job",
+            self.job_stats.total_objects
+        );
 
         // if no VMs are found, return early
-        if vms.is_empty() {
+        if self.job_stats.total_objects == 0 {
             warn!("No VMs found for backup job '{}'", self.job_config.name);
         }
 
-        // create local storage instances from config
-        let local_storages = self
-            .global_state
-            .config
-            .storage
-            .local
-            .iter()
-            .map(|config| {
-                storage::local::LocalStorage::new(config.clone(), self.job_config.clone())
-            })
-            .collect::<Vec<storage::local::LocalStorage>>();
+        let storage_handlers = self
+            .job_config
+            .get_storages(self.global_state.config.storage.clone());
 
-        // initialize all local storages (creating missing dirs, etc.)
-        for ls in local_storages.iter() {
-            ls.initialize().await?;
+        for storage_handler in storage_handlers.clone() {
+            debug!(
+                "Initializing storage handler '{}'",
+                storage_handler.get_job_config().name
+            );
+            storage_handler.initialize().await?;
         }
 
         // sempahore to limit concurrency, use arc to share across threads
@@ -98,129 +107,141 @@ impl XenbakJob for VmBackupJob {
         let mut handles = vec![];
 
         // iterate over previously filtered VMs and perform backup for each
-        for vm in vms {
-            // get a permit from the semaphore
-            let permit = permits.clone().acquire_owned().await.unwrap();
+        for (xapi_client, vms) in vms {
+            for vm in vms {
+                // get a permit from the semaphore
+                let permit = permits.clone().acquire_owned().await.unwrap();
 
-            // clone required data for the task, to move into the task
-            let local_storages = local_storages.clone();
-            let job_type = self.job_type.clone();
-            let job_config = self.job_config.clone();
+                // clone required data for the task, to move into the task
+                let storage_handlers = storage_handlers.clone();
+                let job_type = self.job_type.clone();
+                let xapi_client = xapi_client.clone();
 
-            // the backup task itself
-            let handle = tokio::spawn(async move {
-                let _permit = permit;
+                // the backup task itself
+                let handle = tokio::spawn(async move {
+                    let _permit = permit;
 
-                let timer = tokio::time::Instant::now();
+                    let timer = tokio::time::Instant::now();
 
-                info!("Starting backup of VM '{}' [{}]", vm.name_label, vm.uuid);
+                    info!("Starting backup of VM '{}' [{}]", vm.name_label, vm.uuid);
 
-                // perform snapshot
-                debug!("Creating snapshot...");
-                let snapshot = XApiCliClient::snapshot(&vm, SnapshotType::Normal).await?;
+                    // perform snapshot
+                    debug!("Creating snapshot...");
+                    let snapshot = xapi_client.snapshot(&vm, SnapshotType::Normal).await?;
 
-                let backup_result = async {
-                    // set is-a-template to false
-                    debug!("Setting is-a-template to false...");
-                    let mut snapshot =
-                        XApiCliClient::set_snapshot_param_not_template(&snapshot).await?;
-
-                    // create backup object
-                    let backup_object = storage::BackupObject::new(
-                        job_type.clone(),
-                        vm.name_label.clone(),
-                        snapshot.snapshot_time,
-                        job_config.compression.clone(),
-                    );
-
-                    // set snapshot name to backup object name
-                    snapshot = XApiCliClient::set_snapshot_name(
-                        &snapshot,
-                        backup_object.generate_name_without_extension().as_ref(),
-                    )
-                    .await?;
-
-                    // iterate through enabled local storages, export VM for each and rotate backups
-                    for ls in local_storages {
-                        let full_path = ls.generate_full_file_path(backup_object.clone());
-
-                        // exporting vm to file
-                        debug!("Exporting VM to file: {}", full_path);
-                        XApiCliClient::vm_export_to_file(
-                            &snapshot.uuid,
-                            full_path.as_ref(),
-                            job_config.compression.clone(),
-                        )
-                        .await?;
-
-                        // perform backup rotation on all files where filter matches
-                        debug!("Rotating backups in {}", ls.storage_config.path);
-                        let backup_object_filter =
-                            storage::BackupObjectFilter::from_backup_object(backup_object.clone());
-                        ls.rotate(backup_object_filter, job_config.retention)
+                    let backup_result = async {
+                        // set is-a-template to false
+                        debug!("Setting is-a-template to false...");
+                        let mut snapshot = xapi_client
+                            .set_snapshot_param_not_template(&snapshot)
                             .await?;
+
+                        // create backup object
+                        let backup_object = storage::BackupObject::new(
+                            job_type.clone(),
+                            vm.name_label.clone(),
+                            xapi_client.get_config().name.clone(),
+                            snapshot.snapshot_time,
+                            None,
+                        );
+
+                        // set snapshot name to backup object name
+                        snapshot = xapi_client
+                            .set_snapshot_name(
+                                &snapshot,
+                                backup_object.generate_name_without_extension().as_ref(),
+                            )
+                            .await?;
+
+                        // iterate through enabled local storages, export VM for each and rotate backups
+                        for storage_handler in storage_handlers {
+                            // exporting vm to file
+                            debug!("Exporting VM to file...");
+                            xapi_client
+                                .vm_export_to_storage(
+                                    &snapshot,
+                                    storage_handler.clone(),
+                                    backup_object.clone(),
+                                )
+                                .await?;
+
+                            // rotate backups
+                            debug!("Rotating backups");
+                            let backup_object_filter =
+                                storage::BackupObjectFilter::from_backup_object(
+                                    backup_object.clone(),
+                                );
+                            storage_handler.rotate(backup_object_filter).await?;
+                        }
+
+                        Ok::<(), eyre::Error>(())
+                    }
+                    .await;
+
+                    // always delete the snapshot...
+                    debug!("Deleting snapshot...");
+                    xapi_client.delete_snapshot_by_uuid(&snapshot.uuid).await?;
+
+                    // ...but propagate any errors that occurred during backup
+                    if let Err(e) = backup_result {
+                        return Err(e.wrap_err(format!(
+                            "Backup of VM '{}' [{}] failed",
+                            vm.name_label, vm.uuid
+                        )));
                     }
 
-                    Ok::<(), eyre::Error>(())
-                }
-                .await;
+                    // get the elapsed time and log it
+                    let elapsed = timer.elapsed().as_secs_f64();
+                    info!(
+                        "Finished backup of VM '{}' [{}] in {} seconds",
+                        vm.name_label, vm.uuid, elapsed
+                    );
 
-                // always delete the snapshot...
-                debug!("Deleting snapshot...");
-                XApiCliClient::delete_snapshot_by_uuid(&snapshot.uuid).await?;
+                    // drop the permit to allow another task to run
+                    drop(_permit);
 
-                // ...but propagate any errors that occurred during backup
-                backup_result.wrap_err(format!(
-                    "Failed to backup VM {} [{}]",
-                    vm.name_label, vm.uuid
-                ))?;
+                    eyre::Result::<()>::Ok(())
+                });
 
-                let elapsed = timer.elapsed().as_secs_f64();
-
-                info!(
-                    "Finished backup of VM '{}' [{}] in {} seconds",
-                    vm.name_label, vm.uuid, elapsed
-                );
-
-                // drop the permit to allow another task to run
-                drop(_permit);
-
-                Ok::<(), eyre::Error>(())
-            });
-
-            handles.push(handle);
-        }
-
-        // wait for all async/threaded tasks to finish, save the results
-        let mut results = vec![];
-        for handle in handles {
-            results.push(handle.await);
-        }
-
-        // check if there are any errors in the results
-        for result in results.iter() {
-            if let Err(e) = result {
-                error!("Error during backup job: {:?}", e);
-
-                self.job_stats.failed_objects += 1;
-                self.job_stats.errors.push(e.to_string());
-            } else {
-                self.job_stats.successful_objects += 1;
+                handles.push(handle);
             }
         }
 
+        // wait for all async/threaded tasks to finish and save the results into a vector
+        let mut results = vec![];
+        for handle in handles {
+            results.push(handle.await?);
+        }
+
+        // check if there are any errors in the results, fill stats object appropiately
+        for result in results.iter() {
+            match result {
+                Ok(_) => {
+                    self.job_stats.successful_objects += 1;
+                }
+                Err(e) => {
+                    self.job_stats.failed_objects += 1;
+                    self.job_stats.errors.push(e.source().unwrap().to_string());
+                    error!("{:?}", e);
+                }
+            }
+        }
+
+        // get the elapsed time
         let elapsed = timer.elapsed();
         self.job_stats.duration = elapsed.as_secs_f64();
+
+        // if there were any errors, return a generic error
+        if self.job_stats.failed_objects > 0 {
+            return Err(eyre::eyre!("Backup job failed.",));
+        }
 
         info!(
             "Finished VM backup job with name '{}' in {} seconds",
             self.job_config.name, self.job_stats.duration
         );
 
-        if results.iter().any(|r| r.is_err()) {
-            Err(eyre::eyre!("Backup job failed"))
-        } else {
-            Ok(())
-        }
+        // heck yeah, success!
+        Ok(())
     }
 }
