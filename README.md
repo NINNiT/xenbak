@@ -239,3 +239,7 @@ xen_hosts = ["xen1", "xen2"]     # Xen hosts to backup
 use_existing_snapshot = true     # Use an existing snapshots instead of creating a new one, if available (default: false)
 use_existing_snapshot_age = 3600 # Define the maximum age of an existing snapshot in seconds (default: 3600)
 ```
+
+## Shoutout
+
+This project was supported by (Trafficon – Traffic Consultants GmbH)[https://www.trafficon.eu/].
