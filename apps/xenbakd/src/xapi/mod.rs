@@ -1,5 +1,4 @@
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
 
 use self::error::XApiParseError;
 
@@ -29,7 +28,7 @@ pub struct VM {
 #[derive(Debug, Clone)]
 pub enum SnapshotType {
     Normal,
-    Memory,
+    _Memory,
 }
 
 impl Default for SnapshotType {
@@ -42,7 +41,7 @@ impl ToString for SnapshotType {
     fn to_string(&self) -> String {
         match self {
             SnapshotType::Normal => "basic".to_string(),
-            SnapshotType::Memory => "memory".to_string(),
+            SnapshotType::_Memory => "memory".to_string(),
         }
     }
 }

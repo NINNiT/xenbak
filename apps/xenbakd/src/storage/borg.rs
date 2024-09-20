@@ -101,7 +101,7 @@ impl BorgLocalStorage {
         )
     }
 
-    pub fn archive_name_to_backup_object(
+    pub fn _archive_name_to_backup_object(
         &self,
         archive_name: String,
     ) -> crate::storage::BackupObject {

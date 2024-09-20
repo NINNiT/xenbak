@@ -1,12 +1,11 @@
 use std::{collections::HashMap, sync::Arc};
 
-use eyre::Context;
 use tracing::{debug, error, info, warn, Instrument};
 
 use crate::{
     config::JobConfig,
     jobs::XenbakJobStats,
-    storage::{self, StorageHandler},
+    storage::{self},
     xapi::{cli::client::XApiCliClient, SnapshotType, VM},
     GlobalState,
 };

@@ -18,7 +18,6 @@ use crate::{
     jobs::{vm_backup::VmBackupJob, XenbakJob},
     monitoring::healthchecks::HealthchecksManagementApiTrait,
     scheduler::XenbakScheduler,
-    storage::StorageHandler,
 };
 use clap::Parser;
 use colored::Colorize;
@@ -74,7 +73,10 @@ async fn main() -> eyre::Result<()> {
                 );
 
                 match service.initialize(config.jobs.clone()).await {
-                    Ok(_) => Some(service),
+                    Ok(_) => {
+                        tracing::info!("Healthchecks service initialized successfully");
+                        Some(service)
+                    }
                     Err(e) => {
                         tracing::warn!("Failed to initialize healthchecks service: {}", e);
                         tracing::warn!("Disabling healthchecks service...");
@@ -97,7 +99,10 @@ async fn main() -> eyre::Result<()> {
                 monitoring::mail::MailService::from_config(config.monitoring.mail.clone()).await;
 
             match service {
-                Ok(service) => Some(service),
+                Ok(service) => {
+                    tracing::info!("Mail service initialized successfully");
+                    Some(service)
+                }
                 Err(e) => {
                     tracing::warn!("Failed to initialize mail service: {}", e);
                     tracing::warn!("Disabling mail service...");

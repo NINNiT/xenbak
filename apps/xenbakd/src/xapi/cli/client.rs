@@ -122,7 +122,7 @@ impl XApiCliClient {
                     .arg("vm=".to_owned() + &vm.uuid)
                     .arg("new-name-label=xenbakd-snapshot");
             }
-            SnapshotType::Memory => {
+            SnapshotType::_Memory => {
                 command
                     .arg("vm-checkpoint")
                     .arg("vm=".to_owned() + &vm.uuid)
@@ -233,7 +233,7 @@ impl XApiCliClient {
         }
     }
 
-    pub async fn dynamic_command(&self, args: Vec<&str>) -> Result<String, XApiCliError> {
+    pub async fn _dynamic_command(&self, args: Vec<&str>) -> Result<String, XApiCliError> {
         let output = self.get_base_command().args(args).output().await?;
 
         if output.status.success() {
