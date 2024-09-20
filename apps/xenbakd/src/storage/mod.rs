@@ -1,9 +1,43 @@
 use std::str::FromStr;
 
-use crate::{config::JobConfig, jobs::JobType, xapi::CompressionType};
+use serde::{Deserialize, Serialize};
+
+use crate::{config::JobConfig, jobs::JobType};
 
 pub mod borg;
 pub mod local;
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub enum CompressionType {
+    #[serde(rename = "gzip")]
+    Gzip,
+    #[serde(rename = "zstd")]
+    Zstd,
+}
+
+impl CompressionType {
+    pub fn to_extension(&self) -> String {
+        match self {
+            CompressionType::Gzip => "gz".to_string(),
+            CompressionType::Zstd => "zst".to_string(),
+        }
+    }
+
+    pub fn from_extension(extension: &str) -> eyre::Result<CompressionType> {
+        match extension {
+            "gz" => Ok(CompressionType::Gzip),
+            "zst" => Ok(CompressionType::Zstd),
+            _ => Err(eyre::eyre!("Invalid compression extension")),
+        }
+    }
+
+    pub fn to_cli_arg(&self) -> String {
+        match self {
+            CompressionType::Gzip => "gzip".to_string(),
+            CompressionType::Zstd => "zstd".to_string(),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct StorageStatus {
@@ -21,7 +55,6 @@ pub struct BackupObjectFilter {
         Option<chrono::DateTime<chrono::Utc>>,
         Option<chrono::DateTime<chrono::Utc>>,
     )>,
-    pub compression: Option<Vec<CompressionType>>,
 }
 
 impl BackupObjectFilter {
@@ -30,7 +63,6 @@ impl BackupObjectFilter {
             job_type: Some(vec![backup_object.job_type]),
             vm_name: Some(vec![backup_object.vm_name]),
             time_stamp: Some((None, Some(backup_object.time_stamp))),
-            compression: backup_object.compression.clone().map(|c| vec![c]),
         }
     }
 }
@@ -42,7 +74,6 @@ pub struct BackupObject {
     pub xen_host: String,
     pub time_stamp: chrono::DateTime<chrono::Utc>,
     pub size: Option<u64>,
-    pub compression: Option<CompressionType>,
 }
 
 impl BackupObject {
@@ -59,7 +90,6 @@ impl BackupObject {
             xen_host,
             time_stamp,
             size: None,
-            compression,
         }
     }
 
@@ -82,58 +112,20 @@ impl BackupObject {
         let time_stamp =
             chrono::DateTime::parse_from_rfc3339(parts[3].split(".").next().unwrap())?.to_utc();
 
-        let compression = match parts[3].split('.').last() {
-            Some(ext) => match CompressionType::from_extension(ext) {
-                Ok(compression) => Some(compression),
-                Err(_) => None,
-            },
-            _ => None,
-        };
-
         Ok(BackupObject {
             job_type,
             xen_host: xen_host.to_string(),
             vm_name: vm_name.to_string(),
             time_stamp,
             size: None,
-            compression,
         })
-    }
-
-    pub fn generate_name_without_extension(&self) -> String {
-        format!(
-            "{}__{}__{}__{}",
-            self.xen_host.trim(),
-            self.job_type.to_string(),
-            self.vm_name.trim(),
-            self.time_stamp.to_rfc3339()
-        )
-    }
-
-    pub fn generate_name_with_extension(&self) -> String {
-        let base_name = self.generate_name_without_extension();
-
-        let base_extension = match self.job_type {
-            JobType::VmBackup => "xva",
-        };
-
-        if self.compression.is_none() {
-            return format!("{}.{}", base_name, base_extension);
-        } else {
-            return format!(
-                "{}.{}.{}",
-                base_name,
-                base_extension,
-                self.compression.as_ref().unwrap().to_extension()
-            );
-        };
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum StorageType {
     Local,
-    Borg,
+    BorgLocal,
 }
 
 #[async_trait::async_trait]

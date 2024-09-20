@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::{BorgLocalStorageConfig, JobConfig};
 
-use super::{BackupObjectFilter, StorageHandler, StorageStatus, StorageType};
+use super::{BackupObjectFilter, CompressionType, StorageHandler, StorageStatus, StorageType};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum BorgCompressionType {
@@ -30,7 +30,7 @@ pub struct BorgStorage {
 impl BorgStorage {
     pub fn new(storage_config: BorgLocalStorageConfig, job_config: JobConfig) -> Self {
         BorgStorage {
-            storage_type: StorageType::Borg,
+            storage_type: StorageType::BorgLocal,
             job_config,
             storage_config,
         }

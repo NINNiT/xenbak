@@ -50,6 +50,6 @@ name = "test"
 schedule = "0 */2 * * * *"
 tag_filter = ["backup"]          # Only backup VMs with the given tags
 tag_filter_exclude = ["exclude"] # Exclude VMs with the given tags
-concurrency = 1                  # Number of concurrent backups
+concurrency = 3                  # Number of concurrent backups
 storages = ["local", "borg"]     # Storage to use for the backup
 xen_hosts = ["xen1"]             # Xen hosts to backup

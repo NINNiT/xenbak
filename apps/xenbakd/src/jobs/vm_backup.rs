@@ -50,7 +50,7 @@ impl XenbakJob for VmBackupJob {
 
     /// runs a full vm backup job
     async fn run(&mut self) -> eyre::Result<()> {
-        let timer = tokio::time::Instant::now();
+        let job_timer = tokio::time::Instant::now();
         info!("Running VM backup job '{}'", self.job_config.name);
 
         self.job_stats.config = self.job_config.clone();
@@ -121,7 +121,7 @@ impl XenbakJob for VmBackupJob {
                 let handle = tokio::spawn(async move {
                     let _permit = permit;
 
-                    let timer = tokio::time::Instant::now();
+                    let vm_timer = tokio::time::Instant::now();
 
                     info!("Starting backup of VM '{}' [{}]", vm.name_label, vm.uuid);
 
@@ -136,25 +136,24 @@ impl XenbakJob for VmBackupJob {
                             .set_snapshot_param_not_template(&snapshot)
                             .await?;
 
-                        // create backup object
-                        let backup_object = storage::BackupObject::new(
-                            job_type.clone(),
-                            vm.name_label.clone(),
-                            xapi_client.get_config().name.clone(),
-                            snapshot.snapshot_time,
-                            None,
-                        );
-
                         // set snapshot name to backup object name
                         snapshot = xapi_client
                             .set_snapshot_name(
                                 &snapshot,
-                                backup_object.generate_name_without_extension().as_ref(),
+                                format!("{}__{}", vm.name_label, snapshot.snapshot_time).as_str(),
                             )
                             .await?;
 
                         // iterate through enabled local storages, export VM for each and rotate backups
                         for storage_handler in storage_handlers {
+                            // create the backup object
+                            let backup_object = storage::BackupObject::new(
+                                job_type.clone(),
+                                vm.name_label.clone(),
+                                xapi_client.get_config().name.clone(),
+                                snapshot.snapshot_time,
+                                None,
+                            );
                             // exporting vm to file
                             debug!("Exporting VM to file...");
                             xapi_client
@@ -191,7 +190,7 @@ impl XenbakJob for VmBackupJob {
                     }
 
                     // get the elapsed time and log it
-                    let elapsed = timer.elapsed().as_secs_f64();
+                    let elapsed = vm_timer.elapsed().as_secs_f64();
                     info!(
                         "Finished backup of VM '{}' [{}] in {} seconds",
                         vm.name_label, vm.uuid, elapsed
@@ -228,7 +227,7 @@ impl XenbakJob for VmBackupJob {
         }
 
         // get the elapsed time
-        let elapsed = timer.elapsed();
+        let elapsed = job_timer.elapsed();
         self.job_stats.duration = elapsed.as_secs_f64();
 
         // if there were any errors, return a generic error

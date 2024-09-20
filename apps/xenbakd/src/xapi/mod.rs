@@ -46,35 +46,3 @@ impl ToString for SnapshotType {
         }
     }
 }
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-pub enum CompressionType {
-    #[serde(rename = "gzip")]
-    Gzip,
-    #[serde(rename = "zstd")]
-    Zstd,
-}
-
-impl CompressionType {
-    pub fn to_extension(&self) -> String {
-        match self {
-            CompressionType::Gzip => "gz".to_string(),
-            CompressionType::Zstd => "zst".to_string(),
-        }
-    }
-
-    pub fn from_extension(extension: &str) -> eyre::Result<CompressionType> {
-        match extension {
-            "gz" => Ok(CompressionType::Gzip),
-            "zst" => Ok(CompressionType::Zstd),
-            _ => Err(eyre::eyre!("Invalid compression extension")),
-        }
-    }
-
-    pub fn to_cli_arg(&self) -> String {
-        match self {
-            CompressionType::Gzip => "gzip".to_string(),
-            CompressionType::Zstd => "zstd".to_string(),
-        }
-    }
-}

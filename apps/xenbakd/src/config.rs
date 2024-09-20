@@ -2,13 +2,10 @@
 use serde::{de::IntoDeserializer, Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::{
-    storage::{
-        self,
-        borg::{BorgCompressionType, BorgEncryptionType},
-        StorageHandler,
-    },
-    xapi::CompressionType,
+use crate::storage::{
+    self,
+    borg::{BorgCompressionType, BorgEncryptionType},
+    CompressionType, StorageHandler,
 };
 
 // deserialize "none" string for Option<SomeEnum>, e.g. for Option<CompressionType>. make it work for any source, not just JSON
