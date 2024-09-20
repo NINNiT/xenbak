@@ -143,7 +143,7 @@ impl HealthchecksManagementApiTrait for HealthchecksService {
         slug_filter: Option<String>,
     ) -> eyre::Result<HealthchecksListChecksResponse> {
         let mut url = self.server.clone();
-        url.set_path("/api/v2/checks");
+        url.set_path("/api/v2/checks/");
         let mut request = self
             .client
             .get(url)
