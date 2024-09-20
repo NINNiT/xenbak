@@ -55,7 +55,7 @@ impl MailService {
 
 #[async_trait::async_trait]
 impl MonitoringTrait for MailService {
-    async fn start(&self, hostname: String, job_name: String) -> eyre::Result<()> {
+    async fn start(&self, _hostname: String, _job_name: String) -> eyre::Result<()> {
         // mail service, do nothing!
         Ok(())
     }
@@ -66,6 +66,9 @@ impl MonitoringTrait for MailService {
         hostname: String,
         job_stats: XenbakJobStats,
     ) -> eyre::Result<()> {
+        // pretty print the job_stats object
+        let job_stats = serde_json::to_string_pretty(&job_stats)?;
+
         let body = format!(
             "Backup Job '{}' on host '{}' succeeded.\n\nStats: {:?}",
             job_name, hostname, job_stats
@@ -89,8 +92,7 @@ impl MonitoringTrait for MailService {
         hostname: String,
         job_stats: XenbakJobStats,
     ) -> eyre::Result<()> {
-        // mail body should also include the full job_stats object as json
-        //
+        let job_stats = serde_json::to_string_pretty(&job_stats)?;
         let body = format!(
             "Backup Job '{}' on host '{}' has failed\n\nStats: {:?}",
             job_name, hostname, job_stats

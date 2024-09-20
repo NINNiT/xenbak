@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use eyre::ContextCompat;
-use reqwest::{header::HeaderMap, Response};
+use reqwest::header::HeaderMap;
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
-use serde::Deserialize;
-use tracing::{debug, info};
+
+use tracing::debug;
 
 mod types;
 
@@ -74,6 +74,9 @@ impl MonitoringTrait for HealthchecksService {
             job_name, hostname
         );
 
+
+        let job_stats = serde_json::to_string_pretty(&job_stats)?;
+
         let check = self
             .checks
             .get(&self.generate_slug(job_name, hostname).await)
@@ -117,6 +120,8 @@ impl MonitoringTrait for HealthchecksService {
             "Sending failure notification for job '{}' on host '{}'",
             job_name, hostname
         );
+
+        let job_stats = serde_json::to_string_pretty(&job_stats)?;
 
         let check = self
             .checks

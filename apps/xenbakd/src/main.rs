@@ -73,14 +73,17 @@ async fn main() -> eyre::Result<()> {
                 {
                     Ok(_) => Some(service),
                     Err(e) => {
-                        tracing::error!("Failed to initialize healthchecks service: {}", e);
-                        tracing::error!("Disabling healthchecks service...");
+                        tracing::warn!("Failed to initialize healthchecks service: {}", e);
+                        tracing::warn!("Disabling healthchecks service...");
                         config.monitoring.healthchecks.enabled = false;
                         None
                     }
                 }
             }
-            false => None,
+            false => {
+                tracing::warn!("Healthchecks service is disabled");
+                None
+            }
         };
 
     // initialize mail_service
@@ -93,14 +96,17 @@ async fn main() -> eyre::Result<()> {
             match service {
                 Ok(service) => Some(service),
                 Err(e) => {
-                    tracing::error!("Failed to initialize mail service: {}", e);
-                    tracing::error!("Disabling mail service...");
+                    tracing::warn!("Failed to initialize mail service: {}", e);
+                    tracing::warn!("Disabling mail service...");
                     config.monitoring.mail.enabled = false;
                     None
                 }
             }
         }
-        false => None,
+        false => {
+            tracing::warn!("Mail service is disabled");
+            None
+        }
     };
 
     // create global state
