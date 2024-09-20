@@ -7,36 +7,10 @@ use crate::{config::JobConfig, jobs::JobType};
 pub mod borg;
 pub mod local;
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-pub enum CompressionType {
-    #[serde(rename = "gzip")]
-    Gzip,
-    #[serde(rename = "zstd")]
-    Zstd,
-}
-
-impl CompressionType {
-    pub fn to_extension(&self) -> String {
-        match self {
-            CompressionType::Gzip => "gz".to_string(),
-            CompressionType::Zstd => "zst".to_string(),
-        }
-    }
-
-    pub fn from_extension(extension: &str) -> eyre::Result<CompressionType> {
-        match extension {
-            "gz" => Ok(CompressionType::Gzip),
-            "zst" => Ok(CompressionType::Zstd),
-            _ => Err(eyre::eyre!("Invalid compression extension")),
-        }
-    }
-
-    pub fn to_cli_arg(&self) -> String {
-        match self {
-            CompressionType::Gzip => "gzip".to_string(),
-            CompressionType::Zstd => "zstd".to_string(),
-        }
-    }
+pub trait CompressionType: Sized {
+    fn to_extension(&self) -> String;
+    fn from_extension(extension: &str) -> eyre::Result<Self>;
+    fn to_cli_arg(&self) -> String;
 }
 
 #[derive(Debug, Clone)]
@@ -50,6 +24,7 @@ pub struct StorageStatus {
 #[derive(Debug, Clone)]
 pub struct BackupObjectFilter {
     pub job_type: Option<Vec<JobType>>,
+    pub xen_host: Option<Vec<String>>,
     pub vm_name: Option<Vec<String>>,
     pub time_stamp: Option<(
         Option<chrono::DateTime<chrono::Utc>>,
@@ -61,6 +36,7 @@ impl BackupObjectFilter {
     pub fn from_backup_object(backup_object: BackupObject) -> Self {
         BackupObjectFilter {
             job_type: Some(vec![backup_object.job_type]),
+            xen_host: Some(vec![backup_object.xen_host]),
             vm_name: Some(vec![backup_object.vm_name]),
             time_stamp: Some((None, Some(backup_object.time_stamp))),
         }
@@ -82,7 +58,7 @@ impl BackupObject {
         vm_name: String,
         xen_host: String,
         time_stamp: chrono::DateTime<chrono::Utc>,
-        compression: Option<CompressionType>,
+        size: Option<u64>,
     ) -> Self {
         BackupObject {
             job_type,
@@ -95,30 +71,6 @@ impl BackupObject {
 
     pub fn to_filter(&self) -> BackupObjectFilter {
         BackupObjectFilter::from_backup_object(self.clone())
-    }
-
-    // vm__debian-03__2024-02-09T10:19:02+00:00.xva.gz. compression extension might be missing
-    pub async fn from_name_with_extension(filename: String) -> eyre::Result<BackupObject> {
-        let parts: Vec<&str> = filename.split("__").collect();
-        if parts.len() != 4 {
-            return Err(eyre::eyre!("Invalid backup object name"));
-        }
-
-        // vm__debian-01__2024-02-09T11:28:01+00:00.xva.gz
-
-        let xen_host = parts[0];
-        let job_type = JobType::from_str(parts[1])?;
-        let vm_name = parts[2];
-        let time_stamp =
-            chrono::DateTime::parse_from_rfc3339(parts[3].split(".").next().unwrap())?.to_utc();
-
-        Ok(BackupObject {
-            job_type,
-            xen_host: xen_host.to_string(),
-            vm_name: vm_name.to_string(),
-            time_stamp,
-            size: None,
-        })
     }
 }
 

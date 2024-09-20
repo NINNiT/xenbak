@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use tokio_cron_scheduler::{Job, JobScheduler};
-use tracing::{info};
+use tracing::{error, info};
 
 use crate::{jobs::XenbakJob, monitoring::MonitoringTrait, GlobalState};
 
@@ -20,6 +20,8 @@ impl XenbakScheduler {
         job: X,
         global_state: Arc<GlobalState>,
     ) -> eyre::Result<()> {
+        let span = tracing::span!(tracing::Level::DEBUG, "XenbakScheduler::add_job");
+        let _enter = span.enter();
         info!(
             "Adding job '{}' [{}] to scheduler",
             job.get_name(),
@@ -54,7 +56,8 @@ impl XenbakScheduler {
                         let job_stats = job.get_job_stats();
 
                         // send success/failure notification
-                        if let Err(_e) = job_result {
+                        if let Err(e) = job_result {
+                            error!("{:?}", e);
                             for service in &monitoring_services {
                                 service
                                     .failure(job_stats.config.name.clone(), job_stats.clone())

@@ -50,6 +50,13 @@ impl XenbakJob for VmBackupJob {
 
     /// runs a full vm backup job
     async fn run(&mut self) -> eyre::Result<()> {
+        let span = tracing::span!(
+            tracing::Level::INFO,
+            "VmBackupJob::run",
+            job_name = self.job_config.name.clone(),
+            concurrency = self.job_config.concurrency
+        );
+        let _enter = span.enter();
         let job_timer = tokio::time::Instant::now();
         info!("Running VM backup job '{}'", self.job_config.name);
 
@@ -108,7 +115,16 @@ impl XenbakJob for VmBackupJob {
 
         // iterate over previously filtered VMs and perform backup for each
         for (xapi_client, vms) in vms {
+            let _enter = span.enter();
             for vm in vms {
+                // let span = tracing::span!(
+                //     tracing::Level::INFO,
+                //     "VmBackupJob::run::backup_vm",
+                //     vm.uuid = vm.uuid.clone(),
+                //     vm.name_label = vm.name_label.clone(),
+                //     xen.host = xapi_client.get_config().name.clone()
+                // );
+                // let _enter = span.enter();
                 // get a permit from the semaphore
                 let permit = permits.clone().acquire_owned().await.unwrap();
 
@@ -155,7 +171,7 @@ impl XenbakJob for VmBackupJob {
                                 None,
                             );
                             // exporting vm to file
-                            debug!("Exporting VM to file...");
+                            debug!("Exporting VM to storage handler...",);
                             xapi_client
                                 .vm_export_to_storage(
                                     &snapshot,

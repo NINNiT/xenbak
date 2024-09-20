@@ -40,6 +40,11 @@ async fn main() -> eyre::Result<()> {
     let cli = cli::XenbakdCli::parse();
     let config_path = cli.config;
 
+    // match clap cli
+    match cli.subcmd {
+        _ => {}
+    }
+
     // load default config, then override/merge using config.toml
     let mut config = Figment::from(Serialized::defaults(AppConfig::default()))
         .merge(Toml::file(config_path))
