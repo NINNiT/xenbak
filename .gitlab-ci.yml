@@ -1,0 +1,55 @@
+image: "rust:latest"
+
+stages:
+  - build
+  - build-image
+
+.build_deps:
+  before_script:
+    - apt-get update -yqq
+    - apt-get install -yqq --no-install-recommends build-essential
+    - apt-get install -yqq musl-tools
+    - rustup target add x86_64-unknown-linux-musl
+
+build:regular:
+  stage: build
+  extends: .build_deps
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_TAG
+  script:
+    - cargo build --release
+  artifacts:
+    paths:
+      - target/release/xenbakd
+
+build:musl:
+  stage: build
+  variables:
+    RUSTFLAGS: "-C link-arg=-s"
+  extends: .build_deps
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_TAG
+  script:
+    - cargo build --release --target x86_64-unknown-linux-musl
+  artifacts:
+    paths:
+      - target/x86_64-unknown-linux-musl/release/xenbakd
+
+.build-image:
+  stage: build-image
+  image: docker:20.10
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY --username $CI_REGISTRY_USER --password-stdin
+
+build-image:
+  extends: .build-image
+  stage: build-image
+  image: docker:latest
+  needs:
+    - job: build:regular
+      artifacts: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_TAG
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME --file deploy/docker/Dockerfile .
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME
