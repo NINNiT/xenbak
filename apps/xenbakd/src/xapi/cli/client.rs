@@ -49,45 +49,51 @@ impl XApiCliClient {
         excluded_tags: Vec<String>,
     ) -> Result<Vec<VM>, XApiCliError> {
         // get VM UUIDs with the specified tags
-        let tagged_uuids: Vec<String>;
-        let tagged_uuid_output = self
-            .get_base_command()
-            .arg("vm-list")
-            .arg("tags:contains=".to_owned() + &tags.join(","))
-            .arg("is-a-template=false")
-            .arg("is-a-snapshot=false")
-            .arg("is-control-domain=false")
-            .arg("--minimal")
-            .output()
-            .await?;
+        let mut tagged_uuids: Vec<String> = vec![];
 
-        if tagged_uuid_output.status.success() {
-            let stdout = String::from_utf8_lossy(&tagged_uuid_output.stdout);
-            tagged_uuids = UUIDs::from_cli_output(&stdout)?;
-        } else {
-            let stderr = String::from_utf8_lossy(&tagged_uuid_output.stderr);
-            return Err(XApiCliError::CommandFailed(stderr.into()));
+        for tag in &tags {
+            let tagged_uuid_output = self
+                .get_base_command()
+                .arg("vm-list")
+                .arg("tags:contains=".to_owned() + tag)
+                .arg("is-a-template=false")
+                .arg("is-a-snapshot=false")
+                .arg("is-control-domain=false")
+                .arg("--minimal")
+                .output()
+                .await?;
+
+            if tagged_uuid_output.status.success() {
+                let stdout = String::from_utf8_lossy(&tagged_uuid_output.stdout);
+                tagged_uuids.extend(UUIDs::from_cli_output(&stdout)?);
+            } else {
+                let stderr = String::from_utf8_lossy(&tagged_uuid_output.stderr);
+                return Err(XApiCliError::CommandFailed(stderr.into()));
+            }
         }
 
         // get VM UUIDs with the excluded tags
-        let excluded_uuids: Vec<String>;
-        let excluded_uuid_output = self
-            .get_base_command()
-            .arg("vm-list")
-            .arg("is-a-template=false")
-            .arg("is-a-snapshot=false")
-            .arg("is-control-domain=false")
-            .arg("tags:contains=".to_owned() + &excluded_tags.join(","))
-            .arg("--minimal")
-            .output()
-            .await?;
+        let mut excluded_uuids: Vec<String> = vec![];
 
-        if excluded_uuid_output.status.success() {
-            let stdout = String::from_utf8_lossy(&excluded_uuid_output.stdout);
-            excluded_uuids = UUIDs::from_cli_output(&stdout)?;
-        } else {
-            let stderr = String::from_utf8_lossy(&excluded_uuid_output.stderr);
-            return Err(XApiCliError::CommandFailed(stderr.into()));
+        for excluded_tag in &excluded_tags {
+            let excluded_uuid_output = self
+                .get_base_command()
+                .arg("vm-list")
+                .arg("tags:contains=".to_owned() + excluded_tag)
+                .arg("is-a-template=false")
+                .arg("is-a-snapshot=false")
+                .arg("is-control-domain=false")
+                .arg("--minimal")
+                .output()
+                .await?;
+
+            if excluded_uuid_output.status.success() {
+                let stdout = String::from_utf8_lossy(&excluded_uuid_output.stdout);
+                excluded_uuids.extend(UUIDs::from_cli_output(&stdout)?);
+            } else {
+                let stderr = String::from_utf8_lossy(&excluded_uuid_output.stderr);
+                return Err(XApiCliError::CommandFailed(stderr.into()));
+            }
         }
 
         // filter out the excluded UUIDs
