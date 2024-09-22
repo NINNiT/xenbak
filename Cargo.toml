@@ -1,6 +1,7 @@
 [profile.release]
 opt-level = "z"
 strip = true
+lto = true
 
 [workspace]
 resolver = "2"
