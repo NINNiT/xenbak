@@ -39,7 +39,7 @@ lettre = { version = "0.11.4", features = [
   "hostname",
   "builder",
 ], default-features = false }
-reqwest = { version = "0.11.24", features = [
+reqwest = { version = "0.12.0", features = [
   "rustls-tls",
 ], default-features = false }
 reqwest-middleware = "0.2.3"
