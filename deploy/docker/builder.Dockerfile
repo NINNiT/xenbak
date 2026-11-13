@@ -1,4 +1,4 @@
-FROM rust:1.83.0 as rust_builder
+FROM rust:1.100.0 as rust_builder
 WORKDIR /app
 COPY . .
 RUN cargo build --release --bin xenbakd
